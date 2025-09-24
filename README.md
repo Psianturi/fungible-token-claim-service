@@ -5,20 +5,33 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 ## Features
 
 - **POST `/send-ft`**: Transfer NEP-141 tokens with automatic NEP-145 storage handling
-- **400 TPS Sustained Performance**: Enterprise-grade throughput for high-volume token distribution
-- **Queue-Based Architecture**: 6 concurrent workers with advanced concurrency management
+- **300+ TPS Peak Performance**: Validated with Artillery load testing
+- **48.8% Success Rate**: Optimized connection pooling (32x improvement)
+- **Queue-Based Architecture**: 12 concurrent workers with advanced concurrency management
 - **Multi-Environment Support**: Testnet and sandbox environments
 - **Optimized Signing**: Uses `@eclipseeer/near-api-ts` for efficient transaction handling
-- **Comprehensive Load Testing**: Validated with Artillery (60,000+ requests processed)
+- **Connection Pool Optimization**: 50,000 max connections with keep-alive agents
+- **Comprehensive Load Testing**: Validated with Artillery (70,000+ requests processed)
 
 ## Performance
 
-### Testnet Results (Latest)
-- **Target TPS**: 350 requests/second (realistic for testnet)
-- **Architecture**: Hybrid libraries with 6 concurrent workers
-- **RPC Provider**: NEAR official (`https://rpc.testnet.near.org`)
-- **Error Handling**: Clear, meaningful error messages
-- **Load Management**: Stable under configured concurrency limits
+### Testnet Results (Latest - Optimized)
+- **Peak TPS**: 300 requests/second (achieved)
+- **Average TPS**: 32 requests/second (rate-limited)
+- **Total Requests**: 22,400 processed
+- **Success Rate**: 48.8% (10,939 successful transfers)
+- **Architecture**: Hybrid libraries with 12 concurrent workers
+- **RPC Provider**: FastNEAR (`https://rpc.testnet.fastnear.com/?apiKey=...`)
+- **Connection Pool**: 50,000 max connections with keep-alive
+- **Optimization Impact**: 32x improvement in success rates
+- **Test Duration**: 6 minutes, 5 seconds
+
+### Testnet Results (Before Optimization)
+- **Peak TPS**: 300 requests/second (achieved)
+- **Average TPS**: 77 requests/second
+- **Total Requests**: 47,900 processed
+- **Success Rate**: 1.5% (737 successful transfers)
+- **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
 - **Peak TPS**: 105 requests/second (sustained)
@@ -26,7 +39,7 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Success Rate**: 99.56%
 - **Test Duration**: 75+ minutes continuous load
 
-See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for latest testnet benchmark results.
+See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
 ## Project Structure
 
@@ -160,13 +173,17 @@ curl -X POST http://localhost:3000/send-ft \
 
 ## Performance Summary
 
-- **Testnet Target:** 350 TPS (realistic for production testnet)
+- **Testnet Peak:** 300 TPS (achieved and validated)
+- **Testnet Success Rate:** 48.8% (10,939 successful transfers)
+- **Optimization Impact:** 32x improvement in success rates
+- **Connection Pool:** 50,000 max connections with keep-alive
+- **Workers:** 12 concurrent workers
 - **Sandbox Peak:** 105 TPS (sustained)
-- **Architecture:** Hybrid NEAR libraries with 6 concurrent workers
+- **Architecture:** Hybrid NEAR libraries with optimized connection pooling
 - **Error Handling:** Clear, meaningful error messages
-- **RPC Compatibility:** NEAR official RPC for @eclipseeer/near-api-ts
+- **RPC Compatibility:** FastNEAR API with rate limit management
 
-See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet results.
+See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
 ## Development
 

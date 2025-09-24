@@ -48,7 +48,7 @@ const initEclipseeerForSandbox = async () => {
     createMemorySigner,
   } = await import('@eclipseeer/near-api-ts');
 
-  // Use custom RPC for sandbox
+  // Use custom RPC with global connection pooling (configured in index.ts)
   const network = {
     rpcs: {
       regular: [{ url: config.nodeUrl || 'http://localhost:24278' }],
@@ -85,7 +85,7 @@ const initEclipseeerForSandbox = async () => {
 const initNearApiJs = async () => {
   const { connect, keyStores, KeyPair } = await import('near-api-js');
 
-  // Build network configuration
+  // Build network configuration (connection pooling handled globally)
   const networkConfig = {
     networkId: config.networkId,
     nodeUrl: config.nodeUrl || 'http://localhost:3030',

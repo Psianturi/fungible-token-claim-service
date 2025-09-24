@@ -15,6 +15,8 @@ process.on('unhandledRejection', (reason: any, promise: any) => {
 // 2. Import other modules (config.ts will load dotenv)
 import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
+import https from 'https';
+import http from 'http';
 import { initNear, getNear } from './near.js';
 import { config } from './config.js';
 import { functionCall, teraGas, yoctoNear } from '@eclipseeer/near-api-ts';
@@ -37,10 +39,31 @@ const server = app.listen(port, () => {
 
 // Configure server for maximum performance (600+ TPS) - inspired by Rust implementation
 server.setTimeout(5000); // Very fast timeout like Rust
-server.maxConnections = 10000; // Maximum concurrent connections
+server.maxConnections = 50000; // Increased from 10000 for high concurrency
 server.keepAliveTimeout = 15000; // Shorter keep alive
 server.headersTimeout = 16000; // Headers timeout
 server.requestTimeout = 10000; // Request timeout
+
+// Configure HTTP agents for connection pooling and keep-alive
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 1000, // Increased connection pool
+  maxFreeSockets: 100,
+  timeout: 60000,
+  keepAliveMsecs: 30000,
+});
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 1000, // Increased connection pool
+  maxFreeSockets: 100,
+  timeout: 60000,
+  keepAliveMsecs: 30000,
+});
+
+// Set global agents for all HTTP requests
+http.globalAgent = httpAgent;
+https.globalAgent = httpsAgent;
 
 // Optimize Node.js for high concurrency
 process.setMaxListeners(1000);

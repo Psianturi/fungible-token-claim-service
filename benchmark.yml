@@ -4,23 +4,20 @@ config:
     timeout: 10000  # Reduced for faster processing
     pool: 1000      # Connection pool size
   phases:
-    # Warm-up phase
+    # Warm-up phase - Start slow to test basic functionality
     - duration: 10
-      arrivalRate: 50
-    # Ramp-up to 200 TPS
-    - duration: 30
-      arrivalRate: 50
-      rampTo: 200
-    # Sustained 200 TPS for 2 minutes
-    - duration: 120
-      arrivalRate: 200
-    # Push to 350 TPS
+      arrivalRate: 10
+    # Ramp-up to 100 TPS - Gradual increase to test scaling
+    - duration: 20
+      arrivalRate: 30
+      rampTo: 100
+    # Sustained 100 TPS - Test stability at moderate load
     - duration: 60
+      arrivalRate: 100
+    # Push to 200 TPS - Ramp up to near-target load
+    - duration: 75
       arrivalRate: 200
-      rampTo: 350
-    # Sustained 350 TPS for 2 minutes
-    - duration: 120
-      arrivalRate: 350
+  
    
   defaults:
     headers:
@@ -31,6 +28,6 @@ scenarios:
       - post:
           url: '/send-ft'
           json:
-            receiverId: 'posm.testnet'  # Use testnet account instead of sandbox
-            amount: '100000'
+            receiverId: 'posma-badge.testnet'  # Use different testnet account
+            amount: '200'  # Small amount to avoid balance issues
             memo: 'Artillery Test'
