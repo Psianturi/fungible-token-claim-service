@@ -1,6 +1,6 @@
 # NEAR Fungible Token API Service
 
-A high-performance REST API service for transferring NEAR Fungible Tokens with **350+ TPS sustained performance**. Designed for high-throughput token distribution scenarios, implementing efficient transaction scheduling with access key nonce management and concurrent processing.
+A high-performance REST API service for transferring NEAR Fungible Tokens with **200+ TPS sustained performance**. Designed for high-throughput token distribution scenarios, implementing efficient transaction scheduling with access key nonce management and concurrent processing.
 
 ## Features
 
@@ -34,10 +34,8 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Peak TPS**: 105 requests/second (sustained)
-- **Total Requests**: 53,614 processed
-- **Success Rate**: 99.56%
-- **Test Duration**: 75+ minutes continuous load
+- **Status**: Not yet tested (connection issues with local sandbox)
+- **Note**: Requires local NEAR sandbox environment setup
 
 See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
@@ -178,7 +176,6 @@ curl -X POST http://localhost:3000/send-ft \
 - **Optimization Impact:** 32x improvement in success rates
 - **Connection Pool:** 50,000 max connections with keep-alive
 - **Workers:** 12 concurrent workers
-- **Sandbox Peak:** 105 TPS (sustained)
 - **Architecture:** Hybrid NEAR libraries with optimized connection pooling
 - **Error Handling:** Clear, meaningful error messages
 - **RPC Compatibility:** FastNEAR API with rate limit management
