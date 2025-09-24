@@ -1,0 +1,36 @@
+config:
+  target: 'http://localhost:3000'
+  http:
+    timeout: 10000  # Reduced for faster processing
+    pool: 1000      # Connection pool size
+  phases:
+    # Warm-up phase
+    - duration: 10
+      arrivalRate: 50
+    # Ramp-up to 200 TPS
+    - duration: 30
+      arrivalRate: 50
+      rampTo: 200
+    # Sustained 200 TPS for 2 minutes
+    - duration: 120
+      arrivalRate: 200
+    # Push to 350 TPS
+    - duration: 60
+      arrivalRate: 200
+      rampTo: 350
+    # Sustained 350 TPS for 2 minutes
+    - duration: 120
+      arrivalRate: 350
+   
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+scenarios:
+  - name: 'Send FT'
+    flow:
+      - post:
+          url: '/send-ft'
+          json:
+            receiverId: 'posm.testnet'  # Use testnet account instead of sandbox
+            amount: '100000'
+            memo: 'Artillery Test'
