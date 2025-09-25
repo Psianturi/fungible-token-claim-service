@@ -24,7 +24,7 @@ jobs:
         id: install_neard
         run: |
           set -euo pipefail
-          VERSION="2.6.5"   # sesuaikan versi yang kamu pakai
+          VERSION="1.39.0"   # Updated to stable version that exists in releases
           TRIES=( "neard-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" "neard-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" )
           OK=0
           for name in "${TRIES[@]}"; do
