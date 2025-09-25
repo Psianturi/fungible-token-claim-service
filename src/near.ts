@@ -84,13 +84,13 @@ class NearConnectionManager {
     const { Worker } = await import('near-workspaces');
 
     // Configure worker to use existing sandbox data directory
-    // The deploy.js creates sandbox in default location, try to reuse it
+    // Point to the same directory used by deploy.js script
     const worker = await Worker.init({
       network: 'sandbox',
       // Try to reuse existing sandbox data
       rm: false,
-      // Use default home directory where deploy.js puts the sandbox
-      homeDir: undefined, // Let it use default
+      // Use the same home directory as near-sandbox CLI
+      homeDir: `${process.env.HOME}/.near`,
     });
 
     const masterAccount = worker.rootAccount;

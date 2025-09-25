@@ -34,20 +34,17 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Status**: ❌ **Known Limitation** - Multiple fundamental issues prevent reliable programmatic testing
-- **Issues**:
-  - `Expected string not undefined(undefined) at value.signerId` during transaction serialization
-  - ES module global state conflicts with near-workspaces
-  - Node.js compatibility issues with testing frameworks (Artillery/undici)
-- **Benchmark Results** (19,900 requests):
-  - **Success Rate**: 0% (14,962 HTTP 500 errors)
-  - **Average Response Time**: 9,272ms
-  - **Connection Errors**: 2,906 ECONNRESET, 2,032 ETIMEDOUT
-  - **All Requests Failed**: Same signerId serialization error
-- **Root Cause**: near-workspaces designed for testing has global state conflicts in ES module environment
-- **Impact**: Service initializes successfully but FT transfers and load testing fail
-- **Workaround**: Use testnet environment for all testing (provides identical functionality)
-- **Note**: Manual CLI commands work fine, programmatic API calls and automated testing fail
+- **Status**: ❌ **Known Technical Limitation** - ES module global state conflicts prevent programmatic transaction handling
+- **Issue**: `Expected string not undefined(undefined) at value.signerId` during transaction serialization
+- **Root Cause**: near-workspaces library has fundamental global state conflicts in ES module server environments
+- **Impact**: Service initializes successfully but FT transfers fail during signing/serialization phase
+- **Attempts Made**:
+  - Multiple near-workspaces configurations (rm: false, shared homeDir)
+  - near-api-js fallback approach
+  - Different Worker initialization patterns
+  - All attempts failed with same signerId serialization error
+- **Workaround**: Use testnet environment for all testing (provides identical functionality with better performance)
+- **Note**: Manual near-cli commands work fine, programmatic API calls fail due to ES module compatibility
 
 See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
