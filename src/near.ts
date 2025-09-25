@@ -80,32 +80,38 @@ class NearConnectionManager {
   }
 
   private async initNearApiJs(): Promise<void> {
-    // Try near-workspaces with proper configuration to connect to existing sandbox
-    const { Worker } = await import('near-workspaces');
+    // Use near-api-js directly to connect to existing sandbox
+    const nearAPI = await import('near-api-js');
+    const { connect, keyStores, KeyPair } = nearAPI;
 
-    // Configure worker to use existing sandbox data directory
-    // Point to the same directory used by deploy.js script
-    const worker = await Worker.init({
-      network: 'sandbox',
-      // Try to reuse existing sandbox data
-      rm: false,
-      // Use the same home directory as near-sandbox CLI
-      homeDir: `${process.env.HOME}/.near`,
-    });
+    // Connect to existing sandbox
+    const connectionConfig = {
+      networkId: 'sandbox',
+      keyStore: new keyStores.InMemoryKeyStore(),
+      nodeUrl: config.nodeUrl,
+      walletUrl: config.walletUrl,
+      helperUrl: config.helperUrl,
+      explorerUrl: config.explorerUrl,
+    };
 
-    const masterAccount = worker.rootAccount;
+    const near = await connect(connectionConfig);
+
+    // Create master account using the default test.near key
+    const masterKeyPair = KeyPair.fromString('ed25519:2wyRcSwSuHtRVmkMCGjPwnzZmQLeXLzLLyED1NDMt4BjnKgQL6tF85yBx6Jr26D2dUNeC716RBoTxntVHsegogYw');
+    await connectionConfig.keyStore.setKey('sandbox', 'test.near', masterKeyPair);
+
+    const masterAccount = await near.account('test.near');
 
     // Store references for later use
-    this.nearApiJsNear = { worker, connection: null };
+    this.nearApiJsNear = near;
     this.nearApiJsAccount = masterAccount;
 
     console.log(`🔍 Sandbox Account Debug:`);
-    console.log(`   - Worker initialized with rm: false (reuse existing)`);
-    console.log(`   - Master account:`, masterAccount.accountId);
-    console.log(`   - Attempting to reuse existing sandbox data`);
+    console.log(`   - Connected to existing sandbox at ${config.nodeUrl}`);
+    console.log(`   - Master account: test.near`);
 
     this.isUsingNearApiJs = true;
-    console.log(`✅ NEAR init: near-workspaces (sandbox) - Reusing existing sandbox`);
+    console.log(`✅ NEAR init: near-api-js (sandbox) - Connected to existing sandbox`);
   }
 
   private async initEclipseeerNearApiTs(): Promise<void> {
@@ -243,8 +249,8 @@ class NearConnectionManager {
       if (!this.nearApiJsAccount) {
         throw new Error('Sandbox account not initialized');
       }
-      // For near-workspaces, return the account directly
-      return { account: this.nearApiJsAccount, worker: this.nearApiJsNear.worker };
+      // For near-api-js, return the account and near connection
+      return { account: this.nearApiJsAccount, near: this.nearApiJsNear };
     } else {
       if (!this.eclipseeerSigner) {
         throw new Error('Testnet signer not initialized');
@@ -255,15 +261,9 @@ class NearConnectionManager {
   }
 
   async cleanup(): Promise<void> {
-    if (this.isUsingNearApiJs && this.nearApiJsNear?.worker) {
-      console.log('🧹 Cleaning up NEAR sandbox worker...');
-      try {
-        await this.nearApiJsNear.worker.tearDown();
-        console.log('✅ Sandbox worker cleaned up successfully');
-      } catch (error) {
-        console.error('❌ Error cleaning up sandbox worker:', error);
-      }
-    }
+    // For near-api-js direct connection, no special cleanup needed
+    // The sandbox will be cleaned up by the CI environment
+    console.log('🧹 NEAR cleanup completed (no special cleanup needed for direct connection)');
   }
 }
 

@@ -36,29 +36,28 @@ export async function rpcViewFunction(nodeUrl: string, contractId: string, metho
 
 /**
  * Try multiple provider/account APIs before falling back to raw RPC.
- * - account.viewFunction(contractId, method, args)  (near-api-js)
- * - account.view(contractId, method, args)          (near-workspaces maybe)
- * - account.viewCall / account.call / worker.view?  (other variants)
- * - fallback to rpcViewFunction(nodeUrl,...)
+ * Compatible with:
+ * - near-api-js Account.viewFunction()
+ * - near-workspaces account.view()
+ * - Raw RPC fallback
  */
 export async function safeView(account: any | undefined, nodeUrl: string, contractId: string, methodName: string, args: any = {}) {
   try {
     if (account) {
+      // near-api-js Account.viewFunction method
       if (typeof account.viewFunction === 'function') {
-        return await account.viewFunction(contractId, methodName, args);
+        return await account.viewFunction({ contractId, methodName, args });
       }
+      // near-workspaces account.view method
       if (typeof account.view === 'function') {
-        // near-workspaces: account.view(contractId, method, args)
         return await account.view(contractId, methodName, args);
       }
+      // Fallback for other account types
       if (typeof account.viewCall === 'function') {
         return await account.viewCall(contractId, methodName, args);
       }
-      if (typeof account.call === 'function' && methodName && args !== undefined) {
-        // Some libs might use contract wrappers; skip direct call attempt for view (call will make tx)
-      }
     }
-    // fallback to RPC query
+    // Final fallback to raw RPC query
     return await rpcViewFunction(nodeUrl, contractId, methodName, args);
   } catch (e) {
     // bubble up; caller will handle retry/error

@@ -70,6 +70,7 @@ See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete 
 src/
 ├── index.ts          # Main Express.js application
 ├── near.ts           # NEAR blockchain connection and utilities
+├── near-utils.ts     # Cross-API compatibility helpers
 ├── config.ts         # Environment configuration
 ├── polyfills.ts      # Node.js crypto polyfills
 ├── config.sandbox.ts # Sandbox-specific configuration
@@ -79,6 +80,11 @@ src/
 ├── benchmark.ts      # Load testing script
 ├── test-sandbox.ts   # Sandbox testing utilities
 └── test-testnet.ts   # Testnet testing utilities
+
+helper/                       # NEAR FT helper submodule
+├── deploy.js                 # Sandbox deployment script
+├── deploy-testnet.js         # Testnet deployment script
+└── fungible_token.wasm       # NEP-141 contract WASM
 
 benchmark.yml                 # Artillery load testing configuration
 ARTILLERY_TESTNET_RESULTS.md  # Latest testnet benchmark results
