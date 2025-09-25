@@ -12,16 +12,32 @@ config:
       arrivalRate: 30
       rampTo: 100
     # Sustained 100 TPS - Test stability at moderate load
-    - duration: 65
+    - duration: 60
       arrivalRate: 100
     # Push to 200 TPS - Ramp up to near-target load
     - duration: 60
       arrivalRate: 200
-  
-   
+
+
   defaults:
     headers:
       Content-Type: 'application/json'
+
+environments:
+  sandbox:
+    target: 'http://localhost:3000'
+    http:
+      timeout: 10000
+      pool: 1000
+    phases:
+      # Sandbox testing - Lower load due to known limitations
+      - duration: 10
+        arrivalRate: 5
+      - duration: 20
+        arrivalRate: 10
+        rampTo: 50
+      - duration: 30
+        arrivalRate: 50
 scenarios:
   - name: 'Send FT'
     flow:

@@ -77,7 +77,7 @@ if (typeof global !== 'undefined' && global.gc) {
 const CONCURRENCY_LIMIT = parseInt(process.env.CONCURRENCY_LIMIT || '2000', 10); // Maximum concurrency like Rust
 const QUEUE_SIZE = parseInt(process.env.QUEUE_SIZE || '50000', 10); // Massive queue
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '50', 10); // Large batches
-const WORKER_COUNT = parseInt(process.env.WORKER_COUNT || '6', 10); // Optimized workers
+const WORKER_COUNT = parseInt(process.env.WORKER_COUNT || '4', 10); // Testing with 4 workers for sandbox
 const MAX_IN_FLIGHT = parseInt(process.env.MAX_IN_FLIGHT || '200', 10); // Like Rust MAX_IN_FLIGHT
 
 class ConcurrencyManager {
