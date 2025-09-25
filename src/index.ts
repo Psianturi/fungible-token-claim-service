@@ -20,6 +20,8 @@ import http from 'http';
 import { initNear, getNear, cleanupNear } from './near.js';
 import { config } from './config.js';
 import { functionCall, teraGas, yoctoNear } from '@eclipseeer/near-api-ts';
+import { providers } from 'near-api-js';
+import { safeView } from './near-utils.js';
 
 console.log('🔧 Final Config Loaded:');
 console.log(JSON.stringify(config, null, 2));
@@ -351,6 +353,7 @@ const withRetry = async <T>(fn: () => Promise<T>, attempts = 3) => {
   throw new Error('unreachable');
 };
 
+
 app.use(bodyParser.json());
 
 app.get('/', (req: Request, res: Response) => {
@@ -483,11 +486,7 @@ app.post('/send-ft', async (req: Request, res: Response) => {
         );
       } else {
         bounds = await withRetry(() =>
-          account.viewFunctionCall({
-            contractId: config.ftContract,
-            methodName: 'storage_balance_bounds',
-            args: {}
-          })
+          safeView(account, config.nodeUrl, config.ftContract, 'storage_balance_bounds', {})
         );
       }
 
@@ -505,11 +504,7 @@ app.post('/send-ft', async (req: Request, res: Response) => {
           );
         } else {
           storage = await withRetry(() =>
-            account.viewFunctionCall({
-              contractId: config.ftContract,
-              methodName: 'storage_balance_of',
-              args: { account_id: receiverId }
-            })
+            safeView(account, config.nodeUrl, config.ftContract, 'storage_balance_of', { account_id: receiverId })
           );
         }
 
