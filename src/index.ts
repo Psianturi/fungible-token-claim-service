@@ -551,22 +551,21 @@ app.post('/send-ft', async (req: Request, res: Response) => {
     let result: any;
 
     if (account) {
-      // Using near-api-js (sandbox) - execute function calls
+      // Using near-workspaces (sandbox) - execute actions using call method
       const results = [];
 
       for (const transfer of transferList) {
-        // Use near-api-js account.functionCall method
-        const actionResult = await account.functionCall({
-          contractId: config.ftContract,
-          methodName: 'ft_transfer',
-          args: {
+        // Use near-workspaces call method
+        const actionResult = await account.call(
+          config.ftContract,
+          'ft_transfer',
+          {
             receiver_id: transfer.receiverId,
             amount: transfer.amount,
             memo: transfer.memo || '',
           },
-          attachedDeposit: '1', // 1 yoctoNEAR
-          gas: '30000000000000', // 30 TGas
-        });
+          { attachedDeposit: '1', gas: '30000000000000' }
+        );
         results.push(actionResult);
       }
 
