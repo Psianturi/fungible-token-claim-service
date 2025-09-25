@@ -79,34 +79,79 @@ jobs:
         if: steps.install_neard.outputs.installed == 'true'
         run: |
           set -euo pipefail
-          export NEAR_HOME="$HOME/.near"
           export NEAR_ENV=sandbox
-          export NEAR_CLI_LOCALNET_RPC_SERVER_URL=http://127.0.0.1:3030
+
+          # Wait a bit for sandbox to be fully ready
+          sleep 5
+
+          # Install near-cli for sandbox operations
+          npm install -g near-cli || true
 
           # Create FT contract account
           echo "Creating FT contract account..."
-          neard --home "$NEAR_HOME" create-account ft.test.near --master-account test.near --initial-balance 1000 || true
+          near create-account ft.test.near --masterAccount test.near --initialBalance 1000 || true
 
           # Deploy FT contract
           echo "Deploying FT contract..."
-          neard --home "$NEAR_HOME" deploy --account-id ft.test.near --wasm-file fungible_token.wasm --init-function new --init-args '{"owner_id": "test.near", "total_supply": "1000000000000000000000000", "metadata": {"spec": "ft-1.0.0", "name": "Test Token", "symbol": "TEST", "decimals": 18}}'
+          near deploy ft.test.near fungible_token.wasm --initFunction new --initArgs '{"owner_id": "test.near", "total_supply": "1000000000000000000000000", "metadata": {"spec": "ft-1.0.0", "name": "Test Token", "symbol": "TEST", "decimals": 18}}'
 
           # Create user account for testing
           echo "Creating user account..."
-          neard --home "$NEAR_HOME" create-account user.test.near --master-account test.near --initial-balance 1000 || true
+          near create-account user.test.near --masterAccount test.near --initialBalance 1000 || true
 
           # Register storage for accounts
           echo "Registering storage for test.near..."
-          neard --home "$NEAR_HOME" call ft.test.near storage_deposit '{"account_id": "test.near"}' --account-id test.near --amount 0.00125 || true
+          near call ft.test.near storage_deposit '{"account_id": "test.near"}' --accountId test.near --depositYocto 1250000000000000000000 || true
 
           echo "Registering storage for user.test.near..."
-          neard --home "$NEAR_HOME" call ft.test.near storage_deposit '{"account_id": "user.test.near"}' --account-id user.test.near --amount 0.00125 || true
+          near call ft.test.near storage_deposit '{"account_id": "user.test.near"}' --accountId user.test.near --depositYocto 1250000000000000000000 || true
 
           # Mint some tokens to test.near for testing
           echo "Minting tokens to test.near..."
-          neard --home "$NEAR_HOME" call ft.test.near mint '{"account_id": "test.near", "amount": "1000000000000000000000000"}' --account-id test.near || true
+          near call ft.test.near mint '{"account_id": "test.near", "amount": "1000000000000000000000000"}' --accountId test.near || true
 
           echo "FT contract deployment completed"
+
+      - name: Verify FT contract deployment
+        if: steps.install_neard.outputs.installed == 'true'
+        run: |
+          set -euo pipefail
+          export NEAR_ENV=sandbox
+
+          # Wait a moment for contract to be fully deployed
+          sleep 3
+
+          # Verify contract is deployed by checking ft_total_supply
+          echo "Verifying FT contract deployment..."
+          TOTAL_SUPPLY=$(near view ft.test.near ft_total_supply '{}' || echo "error")
+          if [[ "$TOTAL_SUPPLY" == "error" ]]; then
+            echo "❌ Contract deployment failed - cannot call ft_total_supply"
+            exit 1
+          fi
+
+          # Check if total supply is correct
+          EXPECTED_SUPPLY="1000000000000000000000000"
+          if [[ "$TOTAL_SUPPLY" != *"$EXPECTED_SUPPLY"* ]]; then
+            echo "❌ Contract total supply mismatch. Expected: $EXPECTED_SUPPLY, Got: $TOTAL_SUPPLY"
+            exit 1
+          fi
+
+          # Check balance of test.near
+          echo "Checking test.near balance..."
+          BALANCE=$(near view ft.test.near ft_balance_of '{"account_id": "test.near"}' || echo "error")
+          if [[ "$BALANCE" == "error" ]]; then
+            echo "❌ Cannot check test.near balance"
+            exit 1
+          fi
+
+          if [[ "$BALANCE" != *"$EXPECTED_SUPPLY"* ]]; then
+            echo "❌ test.near balance mismatch. Expected: $EXPECTED_SUPPLY, Got: $BALANCE"
+            exit 1
+          fi
+
+          echo "✅ FT contract deployment verified successfully"
+          echo "   - Total supply: $TOTAL_SUPPLY"
+          echo "   - test.near balance: $BALANCE"
 
       - name: Fallback to run tests against testnet (if no sandbox)
         if: steps.install_neard.outputs.installed == 'false'
