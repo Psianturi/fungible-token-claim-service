@@ -6,17 +6,6 @@ jobs:
   sandbox-test:
     runs-on: ubuntu-latest
 
-    services:
-      sandbox:
-        image: nearprotocol/near-sandbox
-        ports:
-          - 3030:3030
-        options: >-
-          --health-cmd="curl -s http://127.0.0.1:3030/status || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
     steps:
       - uses: actions/checkout@v4
 
@@ -28,17 +17,29 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Wait for sandbox to be ready
+      - name: Start NEAR Sandbox
         run: |
+          echo "Starting NEAR Sandbox..."
+          npx near-sandbox run &
+          SANDBOX_PID=$!
+          echo "SANDBOX_PID=$SANDBOX_PID" >> $GITHUB_ENV
+
+          # Wait for sandbox to be ready (longer timeout for CI)
           echo "Waiting for sandbox to be ready..."
-          for i in {1..30}; do
+          for i in {1..120}; do
             if curl -s http://127.0.0.1:3030/status > /dev/null; then
               echo "Sandbox is ready!"
+              curl -s http://127.0.0.1:3030/status
               break
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting... ($i/120)"
             sleep 2
           done
+
+          if [ $i -eq 120 ]; then
+            echo "Sandbox failed to start after 4 minutes"
+            exit 1
+          fi
 
       - name: Test sandbox connectivity
         run: curl -s http://127.0.0.1:3030/status

@@ -1,6 +1,13 @@
 # NEAR Fungible Token API Service
 
-A high-performance REST API service for transferring NEAR Fungible Tokens with **200+ TPS sustained performance**. Designed for high-throughput token distribution scenarios, implementing efficient transaction scheduling with access key nonce management and concurrent processing.
+[![NEAR Sandbox Test](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml/badge.svg)](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![NEAR Protocol](https://img.shields.io/badge/NEAR-Protocol-blue)](https://near.org/)
+[![Performance](https://img.shields.io/badge/Performance-300%2B%20TPS-green)](https://github.com/Psianturi/fungible-token-claim-service)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A high-performance REST API service for transferring NEAR Fungible Tokens with **300+ TPS sustained performance**. Designed for high-throughput token distribution scenarios, implementing efficient transaction scheduling with access key nonce management and concurrent processing.
 
 ## Features
 
@@ -81,6 +88,16 @@ ARTILLERY_FINAL_REPORT.md     # Sandbox benchmark results
   - FT tokens minted to the master account
 
 ## Testing
+
+### Automated CI/CD Testing (Recommended)
+The project includes GitHub Actions workflow (`.github/workflows/sandbox-test.yml`) that provides reliable sandbox testing using Docker containers:
+
+- ✅ **Automated contract deployment** to sandbox
+- ✅ **API endpoint testing** with health checks
+- ✅ **Artillery benchmark execution** in isolated environment
+- ✅ **No ES module conflicts** (Docker container isolation)
+
+**Trigger**: Runs automatically on every push/PR to `main` branch.
 
 ### Sandbox Testing (Local Development)
 ```bash
