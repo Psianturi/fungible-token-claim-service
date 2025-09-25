@@ -483,7 +483,11 @@ app.post('/send-ft', async (req: Request, res: Response) => {
         );
       } else {
         bounds = await withRetry(() =>
-          account.viewFunction(config.ftContract, 'storage_balance_bounds', {})
+          account.viewFunctionCall({
+            contractId: config.ftContract,
+            methodName: 'storage_balance_bounds',
+            args: {}
+          })
         );
       }
 
@@ -501,7 +505,11 @@ app.post('/send-ft', async (req: Request, res: Response) => {
           );
         } else {
           storage = await withRetry(() =>
-            account.viewFunction(config.ftContract, 'storage_balance_of', { account_id: receiverId })
+            account.viewFunctionCall({
+              contractId: config.ftContract,
+              methodName: 'storage_balance_of',
+              args: { account_id: receiverId }
+            })
           );
         }
 
