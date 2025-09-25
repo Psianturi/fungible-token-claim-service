@@ -386,12 +386,38 @@ app.post('/send-ft', async (req: Request, res: Response) => {
           .status(400)
           .send({ error: 'Each transfer must have receiverId and amount' });
       }
+
+      // Security: Validate receiverId format to prevent homograph attacks
+      // NEAR account IDs: 2-64 characters, lowercase alphanumeric with underscores, hyphens, dots
+      const NEAR_ACCOUNT_REGEX = /^[a-z0-9_-]{2,64}(\.[a-z0-9_-]{2,64})*$/;
+      if (!NEAR_ACCOUNT_REGEX.test(recId)) {
+        return res
+          .status(400)
+          .send({ error: 'Invalid receiverId format. Must be a valid NEAR account ID (2-64 characters, lowercase alphanumeric with underscores, hyphens, and dots only)' });
+      }
+
+      // Additional security: Prevent obvious phishing attempts
+      if (recId.includes('..') || recId.startsWith('.') || recId.endsWith('.')) {
+        return res
+          .status(400)
+          .send({ error: 'Invalid receiverId format. Account ID cannot start/end with dots or contain consecutive dots' });
+      }
+
       const amountStr = String(amt);
       if (isNaN(Number(amountStr)) || Number(amountStr) <= 0) {
         return res
           .status(400)
           .send({ error: 'amount must be a positive number' });
       }
+
+      // Security: Prevent extremely large amounts that could cause overflow
+      const amountNum = Number(amountStr);
+      if (amountNum > 1e30) { // Reasonable upper limit for token amounts
+        return res
+          .status(400)
+          .send({ error: 'amount too large. Maximum allowed: 1e30' });
+      }
+
       transfer.amount = amountStr;
     }
 
