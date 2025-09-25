@@ -108,26 +108,28 @@ jobs:
           # Wait a bit more for full initialization
           sleep 3
 
-          # Create FT contract account
           echo "Creating FT contract account..."
-          near create-account ft.test.near --masterAccount test.near --initialBalance 1000 || true
+          near create-account ft.test.near --masterAccount test.near --initialBalance 1000
 
-          # Deploy FT contract using WASM from helper submodule
           echo "Deploying FT contract..."
           near deploy ft.test.near helper/fungible_token.wasm --initFunction new_default_meta --initArgs '{"owner_id": "test.near", "total_supply": "1000000000000000000000000"}'
 
-          # Create user account for testing
           echo "Creating user account..."
-          near create-account user.test.near --masterAccount test.near --initialBalance 1000 || true
+          near create-account user.test.near --masterAccount test.near --initialBalance 1000
 
-          # Register storage for accounts
           echo "Registering storage for test.near..."
-          near call ft.test.near storage_deposit '{"account_id": "test.near", "registration_only": true}' --accountId test.near --depositYocto 1250000000000000000000 || true
+          near call ft.test.near storage_deposit '{"account_id": "test.near", "registration_only": true}' --accountId test.near --depositYocto 1250000000000000000000
 
           echo "Registering storage for user.test.near..."
-          near call ft.test.near storage_deposit '{"account_id": "user.test.near", "registration_only": true}' --accountId user.test.near --depositYocto 1250000000000000000000 || true
+          near call ft.test.near storage_deposit '{"account_id": "user.test.near", "registration_only": true}' --accountId user.test.near --depositYocto 1250000000000000000000
 
-          echo "✅ FT contract deployment completed"
+          echo "Verifying contract deployment..."
+          TOTAL_SUPPLY=$(near view ft.test.near ft_total_supply '{}' || echo "error")
+          if [[ "$TOTAL_SUPPLY" == "error" ]]; then
+            echo "❌ Contract deployment failed"
+            exit 1
+          fi
+          echo "✅ Contract deployed successfully. Total supply: $TOTAL_SUPPLY"
 
       - name: Fallback to run tests against testnet (if no sandbox)
         if: steps.install_neard.outputs.installed == 'false'
