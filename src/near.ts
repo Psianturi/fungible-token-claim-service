@@ -80,16 +80,17 @@ class NearConnectionManager {
   }
 
   private async initNearApiJs(): Promise<void> {
-    // For sandbox, use near-workspaces with proper server-compatible initialization
+    // Try near-workspaces with proper configuration to connect to existing sandbox
     const { Worker } = await import('near-workspaces');
 
-    // Initialize worker with explicit configuration for server environment
+    // Configure worker to use existing sandbox data directory
+    // The deploy.js creates sandbox in default location, try to reuse it
     const worker = await Worker.init({
       network: 'sandbox',
-      // Use a stable port to avoid conflicts
-      port: 3030,
-      // Ensure proper cleanup
-      rm: false
+      // Try to reuse existing sandbox data
+      rm: false,
+      // Use default home directory where deploy.js puts the sandbox
+      homeDir: undefined, // Let it use default
     });
 
     const masterAccount = worker.rootAccount;
@@ -99,12 +100,12 @@ class NearConnectionManager {
     this.nearApiJsAccount = masterAccount;
 
     console.log(`🔍 Sandbox Account Debug:`);
-    console.log(`   - Worker initialized with port 3030`);
+    console.log(`   - Worker initialized with rm: false (reuse existing)`);
     console.log(`   - Master account:`, masterAccount.accountId);
-    console.log(`   - Worker network: sandbox`);
+    console.log(`   - Attempting to reuse existing sandbox data`);
 
     this.isUsingNearApiJs = true;
-    console.log(`✅ NEAR init: near-workspaces (sandbox) - Server compatible mode`);
+    console.log(`✅ NEAR init: near-workspaces (sandbox) - Reusing existing sandbox`);
   }
 
   private async initEclipseeerNearApiTs(): Promise<void> {
@@ -243,7 +244,6 @@ class NearConnectionManager {
         throw new Error('Sandbox account not initialized');
       }
       // For near-workspaces, return the account directly
-      // This should work properly with the new initialization
       return { account: this.nearApiJsAccount, worker: this.nearApiJsNear.worker };
     } else {
       if (!this.eclipseeerSigner) {
