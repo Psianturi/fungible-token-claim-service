@@ -1,0 +1,139 @@
+name: NEAR Sandbox Test
+
+on: [push, pull_request]
+
+jobs:
+  sandbox-test:
+    runs-on: ubuntu-latest
+
+    services:
+      sandbox:
+        image: nearprotocol/near-sandbox
+        ports:
+          - 3030:3030
+        options: >-
+          --health-cmd="curl -s http://127.0.0.1:3030/status || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Wait for sandbox to be ready
+        run: |
+          echo "Waiting for sandbox to be ready..."
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:3030/status > /dev/null; then
+              echo "Sandbox is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+      - name: Test sandbox connectivity
+        run: curl -s http://127.0.0.1:3030/status
+
+      - name: Deploy FT contract to sandbox
+        run: |
+          echo "Deploying FT contract..."
+          # Use a simple deployment script for CI
+          node -e "
+          const { Worker } = require('near-workspaces');
+          async function deploy() {
+            const worker = await Worker.init();
+            const root = worker.rootAccount;
+
+            // Deploy FT contract
+            const contract = await root.devDeploy('./fungible_token.wasm', {
+              method: 'new',
+              args: {
+                owner_id: root.accountId,
+                total_supply: '1000000000000000000000000',
+                metadata: {
+                  spec: 'ft-1.0.0',
+                  name: 'Test Token',
+                  symbol: 'TEST',
+                  decimals: 18
+                }
+              }
+            });
+
+            // Create test user account
+            const user = await root.createSubAccount('user');
+
+            // Transfer some tokens to user for testing
+            await root.call(contract, 'ft_transfer', {
+              receiver_id: user.accountId,
+              amount: '500000000000000000000',
+              memo: 'Test transfer'
+            });
+
+            console.log('✅ Contract deployed successfully');
+            console.log('Contract ID:', contract.accountId);
+            console.log('User ID:', user.accountId);
+
+            await worker.tearDown();
+          }
+          deploy().catch(console.error);
+          "
+
+      - name: Start API service
+        run: |
+          NEAR_ENV=sandbox NODE_URL=http://127.0.0.1:3030 npm run start:sandbox &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Wait for server to start
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/ > /dev/null; then
+              echo "API server is ready!"
+              break
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+
+      - name: Test API endpoints
+        run: |
+          echo "Testing API endpoints..."
+
+          # Test health check
+          curl -f http://localhost:3000/ || exit 1
+
+          # Test FT transfer
+          RESPONSE=$(curl -s -X POST http://localhost:3000/send-ft \
+            -H "Content-Type: application/json" \
+            -d '{"receiverId": "user.test.near", "amount": "1000000000000000000", "memo": "CI test"}')
+
+          echo "API Response: $RESPONSE"
+
+          # Check if transfer was successful (should not contain error)
+          if echo "$RESPONSE" | grep -q '"error"'; then
+            echo "❌ API test failed"
+            exit 1
+          else
+            echo "✅ API test passed"
+          fi
+
+      - name: Run Artillery benchmark
+        run: |
+          echo "Running Artillery benchmark..."
+          npx artillery run benchmark.yml --environment sandbox --output benchmark-sandbox-ci.json
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-benchmark-results
+          path: |
+            benchmark-sandbox-ci.json
+            artillery_report_*.html

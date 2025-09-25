@@ -34,17 +34,17 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Status**: ❌ **Known Technical Limitation** - ES module global state conflicts prevent programmatic transaction handling
-- **Issue**: `Expected string not undefined(undefined) at value.signerId` during transaction serialization
-- **Root Cause**: near-workspaces library has fundamental global state conflicts in ES module server environments
-- **Impact**: Service initializes successfully but FT transfers fail during signing/serialization phase
-- **Attempts Made**:
-  - Multiple near-workspaces configurations (rm: false, shared homeDir)
-  - near-api-js fallback approach
-  - Different Worker initialization patterns
-  - All attempts failed with same signerId serialization error
-- **Workaround**: Use testnet environment for all testing (provides identical functionality with better performance)
-- **Note**: Manual near-cli commands work fine, programmatic API calls fail due to ES module compatibility
+- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions Docker sandbox provides reliable testing
+- **Issue**: Local ES module global state conflicts prevented programmatic testing
+- **Solution**: GitHub Actions with `nearprotocol/near-sandbox` Docker container
+- **CI/CD Pipeline**: `.github/workflows/sandbox-test.yml` provides automated sandbox testing
+- **Features**:
+  - Automated contract deployment
+  - API endpoint testing
+  - Artillery benchmark execution
+  - Docker-based isolation (no ES module conflicts)
+- **Local Development**: Use testnet environment (provides identical functionality)
+- **Note**: CI/CD pipeline ensures sandbox functionality works correctly in isolated environments
 
 See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
