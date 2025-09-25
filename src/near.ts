@@ -80,10 +80,18 @@ class NearConnectionManager {
   }
 
   private async initNearApiJs(): Promise<void> {
-    // For sandbox, use near-workspaces instead of near-api-js for better compatibility
+    // For sandbox, use near-workspaces with proper server-compatible initialization
     const { Worker } = await import('near-workspaces');
 
-    const worker = await Worker.init();
+    // Initialize worker with explicit configuration for server environment
+    const worker = await Worker.init({
+      network: 'sandbox',
+      // Use a stable port to avoid conflicts
+      port: 3030,
+      // Ensure proper cleanup
+      rm: false
+    });
+
     const masterAccount = worker.rootAccount;
 
     // Store references for later use
@@ -91,11 +99,12 @@ class NearConnectionManager {
     this.nearApiJsAccount = masterAccount;
 
     console.log(`🔍 Sandbox Account Debug:`);
-    console.log(`   - Worker initialized`);
+    console.log(`   - Worker initialized with port 3030`);
     console.log(`   - Master account:`, masterAccount.accountId);
+    console.log(`   - Worker network: sandbox`);
 
     this.isUsingNearApiJs = true;
-    console.log(`✅ NEAR init: near-workspaces (sandbox)`);
+    console.log(`✅ NEAR init: near-workspaces (sandbox) - Server compatible mode`);
   }
 
   private async initEclipseeerNearApiTs(): Promise<void> {
@@ -233,14 +242,27 @@ class NearConnectionManager {
       if (!this.nearApiJsAccount) {
         throw new Error('Sandbox account not initialized');
       }
-      // Return near-api-js interface (Account)
-      return { account: this.nearApiJsAccount, near: this.nearApiJsNear };
+      // For near-workspaces, return the account directly
+      // This should work properly with the new initialization
+      return { account: this.nearApiJsAccount, worker: this.nearApiJsNear.worker };
     } else {
       if (!this.eclipseeerSigner) {
         throw new Error('Testnet signer not initialized');
       }
       // Return @eclipseeer/near-api-ts interface (Signer)
       return { signer: this.eclipseeerSigner, client: this.eclipseeerClient };
+    }
+  }
+
+  async cleanup(): Promise<void> {
+    if (this.isUsingNearApiJs && this.nearApiJsNear?.worker) {
+      console.log('🧹 Cleaning up NEAR sandbox worker...');
+      try {
+        await this.nearApiJsNear.worker.tearDown();
+        console.log('✅ Sandbox worker cleaned up successfully');
+      } catch (error) {
+        console.error('❌ Error cleaning up sandbox worker:', error);
+      }
     }
   }
 }
@@ -250,3 +272,6 @@ const connectionManager = NearConnectionManager.getInstance();
 
 export const initNear = () => connectionManager.init();
 export const getNear = () => connectionManager.getNear();
+
+// Cleanup function for graceful shutdown
+export const cleanupNear = () => connectionManager.cleanup();

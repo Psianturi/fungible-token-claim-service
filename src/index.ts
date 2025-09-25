@@ -17,7 +17,7 @@ import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
 import https from 'https';
 import http from 'http';
-import { initNear, getNear } from './near.js';
+import { initNear, getNear, cleanupNear } from './near.js';
 import { config } from './config.js';
 import { functionCall, teraGas, yoctoNear } from '@eclipseeer/near-api-ts';
 
@@ -261,21 +261,24 @@ if (process.env.ENABLE_MEMORY_MONITORING === 'true') {
 }
 
 // Graceful shutdown handling
-process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
-  });
-});
+const gracefulShutdown = async (signal: string) => {
+  console.log(`📴 ${signal} received, shutting down gracefully...`);
 
-process.on('SIGINT', () => {
-  console.log('📴 SIGINT received, shutting down gracefully...');
+  try {
+    // Cleanup NEAR connections
+    await cleanupNear();
+  } catch (error) {
+    console.error('❌ Error during NEAR cleanup:', error);
+  }
+
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
   });
-});
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Helper function to extract meaningful error messages
 const extractErrorMessage = (error: any): string => {
