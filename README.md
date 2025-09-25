@@ -1,7 +1,6 @@
 # NEAR Fungible Token API Service
 
 [![NEAR Sandbox Test](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml/badge.svg)](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![NEAR Protocol](https://img.shields.io/badge/NEAR-Protocol-blue)](https://near.org/)
 [![Performance](https://img.shields.io/badge/Performance-300%2B%20TPS-green)](https://github.com/Psianturi/fungible-token-claim-service)
@@ -41,17 +40,17 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions Docker sandbox provides reliable testing
+- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions with near-workspaces provides reliable testing
 - **Issue**: Local ES module global state conflicts prevented programmatic testing
-- **Solution**: GitHub Actions with `nearprotocol/near-sandbox` Docker container
+- **Solution**: GitHub Actions using `near-workspaces` for in-process sandbox testing
 - **CI/CD Pipeline**: `.github/workflows/sandbox-test.yml` provides automated sandbox testing
 - **Features**:
-  - Automated contract deployment
-  - API endpoint testing
+  - Automated contract deployment via near-workspaces
+  - API endpoint testing with live sandbox
   - Artillery benchmark execution
-  - Docker-based isolation (no ES module conflicts)
+  - No Docker complexity - pure Node.js testing
 - **Local Development**: Use testnet environment (provides identical functionality)
-- **Note**: CI/CD pipeline ensures sandbox functionality works correctly in isolated environments
+- **Note**: CI/CD pipeline ensures sandbox functionality works correctly without ES module conflicts
 
 See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 

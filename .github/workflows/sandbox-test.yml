@@ -14,127 +14,76 @@ jobs:
         with:
           node-version: 24
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Initialize NEAR Sandbox
+      - name: Run sandbox integration tests
+        env:
+          NEAR_NO_LOGS: 1
         run: |
-          echo "Initializing NEAR Sandbox configuration..."
-          npx near-sandbox init --home /home/runner/.near
+          echo "Starting sandbox integration tests..."
 
-      - name: Start NEAR Sandbox
-        run: |
-          echo "Starting NEAR Sandbox..."
-          npx near-sandbox run --home /home/runner/.near &
-          SANDBOX_PID=$!
-          echo "SANDBOX_PID=$SANDBOX_PID" >> $GITHUB_ENV
-
-          # Wait for sandbox to be ready (longer timeout for CI)
-          echo "Waiting for sandbox to be ready..."
-          for i in {1..120}; do
-            if curl -s http://127.0.0.1:3030/status > /dev/null; then
-              echo "Sandbox is ready!"
-              curl -s http://127.0.0.1:3030/status
-              break
-            fi
-            echo "Waiting... ($i/120)"
-            sleep 2
-          done
-
-          if [ $i -eq 120 ]; then
-            echo "Sandbox failed to start after 4 minutes"
-            exit 1
-          fi
-
-      - name: Test sandbox connectivity
-        run: curl -s http://127.0.0.1:3030/status
-
-      - name: Deploy FT contract to sandbox
-        run: |
-          echo "Deploying FT contract..."
-          # Use a simple deployment script for CI
-          node -e "
-          const { Worker } = require('near-workspaces');
-          async function deploy() {
-            const worker = await Worker.init();
-            const root = worker.rootAccount;
-
-            // Deploy FT contract
-            const contract = await root.devDeploy('./fungible_token.wasm', {
-              method: 'new',
-              args: {
-                owner_id: root.accountId,
-                total_supply: '1000000000000000000000000',
-                metadata: {
-                  spec: 'ft-1.0.0',
-                  name: 'Test Token',
-                  symbol: 'TEST',
-                  decimals: 18
-                }
-              }
-            });
-
-            // Create test user account
-            const user = await root.createSubAccount('user');
-
-            // Transfer some tokens to user for testing
-            await root.call(contract, 'ft_transfer', {
-              receiver_id: user.accountId,
-              amount: '500000000000000000000',
-              memo: 'Test transfer'
-            });
-
-            console.log('✅ Contract deployed successfully');
-            console.log('Contract ID:', contract.accountId);
-            console.log('User ID:', user.accountId);
-
-            await worker.tearDown();
-          }
-          deploy().catch(console.error);
-          "
-
-      - name: Start API service
-        run: |
-          NEAR_ENV=sandbox NODE_URL=http://127.0.0.1:3030 npm run start:sandbox &
+          # Start the API service in background
+          npm run start:sandbox &
           SERVER_PID=$!
-          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+          echo "SERVER_PID=$SERVER_PID"
 
           # Wait for server to start
           for i in {1..30}; do
             if curl -s http://localhost:3000/ > /dev/null; then
-              echo "API server is ready!"
+              echo "✅ API server is ready!"
               break
             fi
-            echo "Waiting for server... ($i/30)"
+            echo "⏳ Waiting for server... ($i/30)"
             sleep 2
           done
 
-      - name: Test API endpoints
-        run: |
-          echo "Testing API endpoints..."
+          if [ $i -eq 30 ]; then
+            echo "❌ Server failed to start"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          # Test API endpoints
+          echo "🧪 Testing API endpoints..."
 
           # Test health check
-          curl -f http://localhost:3000/ || exit 1
+          if ! curl -f http://localhost:3000/; then
+            echo "❌ Health check failed"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
 
-          # Test FT transfer
+          # Test FT transfer (this will use near-workspaces internally)
           RESPONSE=$(curl -s -X POST http://localhost:3000/send-ft \
             -H "Content-Type: application/json" \
             -d '{"receiverId": "user.test.near", "amount": "1000000000000000000", "memo": "CI test"}')
 
-          echo "API Response: $RESPONSE"
+          echo "📄 API Response: $RESPONSE"
 
-          # Check if transfer was successful (should not contain error)
+          # Check if transfer was successful
           if echo "$RESPONSE" | grep -q '"error"'; then
-            echo "❌ API test failed"
+            echo "❌ API test failed - sandbox integration issue"
+            kill $SERVER_PID 2>/dev/null || true
             exit 1
           else
-            echo "✅ API test passed"
+            echo "✅ API test passed - sandbox working correctly"
           fi
 
-      - name: Run Artillery benchmark
-        run: |
-          echo "Running Artillery benchmark..."
+          # Run Artillery benchmark
+          echo "🎯 Running Artillery benchmark..."
           npx artillery run benchmark.yml --environment sandbox --output benchmark-sandbox-ci.json
+
+          # Cleanup
+          kill $SERVER_PID 2>/dev/null || true
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
