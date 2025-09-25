@@ -17,10 +17,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Initialize NEAR Sandbox
+        run: |
+          echo "Initializing NEAR Sandbox configuration..."
+          npx near-sandbox init --home /home/runner/.near
+
       - name: Start NEAR Sandbox
         run: |
           echo "Starting NEAR Sandbox..."
-          npx near-sandbox run &
+          npx near-sandbox run --home /home/runner/.near &
           SANDBOX_PID=$!
           echo "SANDBOX_PID=$SANDBOX_PID" >> $GITHUB_ENV
 
