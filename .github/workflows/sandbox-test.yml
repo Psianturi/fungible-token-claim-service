@@ -146,6 +146,7 @@ jobs:
           NODE_URL: http://127.0.0.1:3030
           FT_CONTRACT: ft.test.near
           MASTER_ACCOUNT: test.near
+          MASTER_ACCOUNT_PRIVATE_KEY: ${{ secrets.MASTER_ACCOUNT_PRIVATE_KEY }}
         run: |
           # start service with explicit environment
           if [ "${NEAR_ENV}" = "sandbox" ]; then
