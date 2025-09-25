@@ -5,9 +5,18 @@
 [![NEAR Protocol](https://img.shields.io/badge/NEAR-Protocol-blue)](https://near.org/)
 [![Performance](https://img.shields.io/badge/Performance-300%2B%20TPS-green)](https://github.com/Psianturi/fungible-token-claim-service)
 [![Security](https://img.shields.io/badge/Security-Hardened-red)](https://github.com/Psianturi/fungible-token-claim-service/security)
+[![Contract](https://img.shields.io/badge/Contract-Deployed-green)](https://github.com/Psianturi/fungible-token-claim-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A high-performance REST API service for transferring NEAR Fungible Tokens with **300+ TPS sustained performance**. Designed for high-throughput token distribution scenarios, implementing efficient transaction scheduling with access key nonce management and concurrent processing.
+
+## 🚀 CI/CD Status
+
+**Automated Testing & Deployment:**
+- ✅ **Sandbox**: FT contract deployed, test accounts created, storage registered
+- ✅ **Testnet**: Production environment with real NEAR network
+- ✅ **Security**: Input validation, account ID verification, overflow protection
+- ✅ **Performance**: 300+ TPS benchmarked and validated
 
 ## Features
 
