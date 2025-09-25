@@ -36,23 +36,37 @@ jobs:
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID"
 
-          # Wait for server to start
-          for i in {1..30}; do
+          # Wait for server to start AND NEAR to initialize
+          for i in {1..60}; do
             if curl -s http://localhost:3000/ > /dev/null; then
-              echo "✅ API server is ready!"
-              break
+              echo "✅ API server is responding"
+
+              # Check if NEAR is initialized by testing the API
+              TEST_RESPONSE=$(curl -s -X POST http://localhost:3000/send-ft \
+                -H "Content-Type: application/json" \
+                -d '{"receiverId": "test.near", "amount": "1000"}' 2>/dev/null || echo "connection_error")
+
+              if echo "$TEST_RESPONSE" | grep -q '"error"' && echo "$TEST_RESPONSE" | grep -q "NEAR connection not initialized"; then
+                echo "⏳ NEAR connection not ready yet... ($i/60)"
+                sleep 2
+                continue
+              else
+                echo "✅ NEAR connection is ready!"
+                break
+              fi
+            else
+              echo "⏳ Waiting for server... ($i/60)"
+              sleep 2
             fi
-            echo "⏳ Waiting for server... ($i/30)"
-            sleep 2
           done
 
-          if [ $i -eq 30 ]; then
-            echo "❌ Server failed to start"
+          if [ $i -eq 60 ]; then
+            echo "❌ Server or NEAR initialization failed to complete within 2 minutes"
             kill $SERVER_PID 2>/dev/null || true
             exit 1
           fi
 
-          # Test API endpoints
+          # Test API endpoints with proper data
           echo "🧪 Testing API endpoints..."
 
           # Test health check
@@ -72,6 +86,7 @@ jobs:
           # Check if transfer was successful
           if echo "$RESPONSE" | grep -q '"error"'; then
             echo "❌ API test failed - sandbox integration issue"
+            echo "Response: $RESPONSE"
             kill $SERVER_PID 2>/dev/null || true
             exit 1
           else
