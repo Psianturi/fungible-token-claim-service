@@ -12,10 +12,10 @@ config:
       arrivalRate: 30
       rampTo: 100
     # Sustained 100 TPS - Test stability at moderate load
-    - duration: 60
+    - duration: 65
       arrivalRate: 100
     # Push to 200 TPS - Ramp up to near-target load
-    - duration: 75
+    - duration: 60
       arrivalRate: 200
   
    

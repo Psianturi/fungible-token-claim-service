@@ -34,8 +34,12 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Status**: Not yet tested (connection issues with local sandbox)
-- **Note**: Requires local NEAR sandbox environment setup
+- **Status**: ❌ **Known Limitation** - ES module global state issues prevent programmatic transaction handling
+- **Issue**: `Expected string not undefined(undefined) at value.signerId` during transaction serialization
+- **Root Cause**: near-workspaces global state conflicts with ES module environment
+- **Impact**: Service initializes successfully but FT transfers fail during signing/serialization
+- **Workaround**: Use testnet environment for all testing (provides identical functionality)
+- **Note**: Manual CLI commands work fine, but programmatic API calls fail due to global state issues
 
 See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
@@ -208,6 +212,16 @@ npm test       # Run tests (when available)
 #### ZodError or parsing errors
 - **Cause**: RPC response format incompatibility
 - **Solution**: Use NEAR official RPC for testnet (`https://rpc.testnet.near.org`)
+
+#### "Expected string not undefined(undefined) at value.signerId" (Sandbox)
+- **Cause**: ES module global state conflicts with near-workspaces programmatic usage
+- **Solution**: This is a known limitation. Use testnet environment instead:
+  ```bash
+  # Switch to testnet
+  export NEAR_ENV=testnet
+  npm start
+  ```
+- **Note**: Manual near-cli commands work fine, but programmatic API calls fail in sandbox mode
 
 ## Security Notes
 

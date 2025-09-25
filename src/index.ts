@@ -392,9 +392,15 @@ app.post('/send-ft', async (req: Request, res: Response) => {
       transfer.amount = amountStr;
     }
 
-    const nearInterface = getNear();
+    // Lazy initialization - ensure NEAR is initialized for this request
+    let nearInterface = getNear();
     if (!nearInterface) {
-      return res.status(500).send({ error: 'NEAR connection not initialized' });
+      console.log('NEAR not initialized, initializing now...');
+      await initNear();
+      nearInterface = getNear();
+      if (!nearInterface) {
+        return res.status(500).send({ error: 'Failed to initialize NEAR connection' });
+      }
     }
 
     // Handle hybrid approach: different interfaces for different libraries
@@ -513,20 +519,21 @@ app.post('/send-ft', async (req: Request, res: Response) => {
     let result: any;
 
     if (account) {
-      // Using near-api-js (sandbox) - execute actions sequentially
-      // near-api-js doesn't support batch transactions like @eclipseeer/near-api-ts
-      // So we execute each action individually using functionCall
+      // Using near-workspaces (sandbox) - execute actions using call method
       const results = [];
 
-      for (const action of actions) {
-        // Use account.functionCall which handles signerId internally
-        const actionResult = await account.functionCall({
-          contractId: config.ftContract,
-          methodName: action.params.fnName,
-          args: action.params.fnArgsJson,
-          gas: action.params.gasLimit?.gas || 30000000000000n,
-          attachedDeposit: action.params.attachedDeposit?.yoctoNear ? BigInt(action.params.attachedDeposit.yoctoNear) : 1n,
-        });
+      for (const transfer of transferList) {
+        // Use near-workspaces call method
+        const actionResult = await account.call(
+          config.ftContract,
+          'ft_transfer',
+          {
+            receiver_id: transfer.receiverId,
+            amount: transfer.amount,
+            memo: transfer.memo || '',
+          },
+          { attachedDeposit: '1', gas: '30000000000000' }
+        );
         results.push(actionResult);
       }
 
@@ -599,7 +606,11 @@ app.post('/send-ft', async (req: Request, res: Response) => {
 
 const startServer = async () => {
   try {
+    // Initialize NEAR connection first
     await initNear();
+    console.log(`✅ NEAR connection initialized successfully`);
+
+    // Start server after NEAR is ready
     console.log(`🚀 Server is running on http://localhost:${port}`);
     console.log(`📊 Server configured for high concurrency:`);
     console.log(`   - Max connections: ${server.maxConnections}`);
