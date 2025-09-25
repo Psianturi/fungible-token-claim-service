@@ -1,3 +1,4 @@
+# .github/workflows/sandbox-test.yml
 name: Sandbox Integration (CI)
 
 on:
@@ -14,17 +15,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
-      - name: Install deps (ci or install fallback)
+      - name: Install dependencies
         run: |
-          if [ -f package-lock.json ]; then npm ci --silent; else npm install --silent; fi
+          npm ci --silent
 
       - name: Try to install neard binary from nearcore releases
         id: install_neard
         run: |
           set -euo pipefail
-          VERSION="1.39.0"   # Updated to stable version that exists in releases
+          VERSION="2.6.5"
           TRIES=( "neard-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" "neard-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" )
           OK=0
           for name in "${TRIES[@]}"; do
@@ -103,7 +104,7 @@ jobs:
           export NEAR_ENV=sandbox
 
           # Install near-cli for sandbox operations
-          npm install -g near-cli || true
+          npm install -g near-cli
 
           # Wait a bit more for full initialization
           sleep 3
@@ -112,7 +113,7 @@ jobs:
           near create-account ft.test.near --masterAccount test.near --initialBalance 1000
 
           echo "Deploying FT contract..."
-          near deploy ft.test.near helper/fungible_token.wasm --initFunction new_default_meta --initArgs '{"owner_id": "test.near", "total_supply": "1000000000000000000000000"}'
+          near deploy ft.test.near ./helper/fungible_token.wasm --initFunction new_default_meta --initArgs '{"owner_id": "test.near", "total_supply": "1000000000000000000000000"}'
 
           echo "Creating user account..."
           near create-account user.test.near --masterAccount test.near --initialBalance 1000
@@ -135,24 +136,30 @@ jobs:
         if: steps.install_neard.outputs.installed == 'false'
         run: |
           echo "neard not available in runner. We'll run integration steps against testnet as fallback."
-          # set env so app uses testnet config
           echo "NEAR_ENV=testnet" >> $GITHUB_ENV
+          echo "FT_CONTRACT=posm.testnet" >> $GITHUB_ENV
+          echo "MASTER_ACCOUNT=posm.testnet" >> $GITHUB_ENV
 
       - name: Run server (in background) and tests
         env:
-          NEAR_ENV: sandbox
+          NEAR_ENV: ${{ env.NEAR_ENV || 'sandbox' }}
           NODE_URL: http://127.0.0.1:3030
-          FT_CONTRACT: ft.test.near
-          MASTER_ACCOUNT: test.near
+          FT_CONTRACT: ${{ env.FT_CONTRACT || 'ft.test.near' }}
+          MASTER_ACCOUNT: ${{ env.MASTER_ACCOUNT || 'test.near' }}
         run: |
-          # start service with explicit sandbox environment
-          npm run start:sandbox &> service.log &
+          # start service with explicit environment
+          if [ "${NEAR_ENV}" = "sandbox" ]; then
+            npm run start:sandbox &> service.log &
+          else
+            npm start &> service.log &
+          fi
           sleep 3
 
           # Wait for API to respond (up to 60s)
           for i in $(seq 1 60); do
             if curl -sS http://127.0.0.1:3000/health >/dev/null 2>&1; then
-              echo "✅ service up and responding"; break
+              echo "✅ service up and responding"
+              break
             fi
             echo "⏳ Waiting for service... ($i/60)"
             sleep 1
@@ -166,13 +173,18 @@ jobs:
 
           # Run integration tests with retry
           echo "🧪 Running integration tests..."
+          RECEIVER_ID="user.test.near"
+          if [ "${NEAR_ENV}" != "sandbox" ]; then
+            RECEIVER_ID="posma-badge.testnet"
+          fi
+
           for attempt in {1..3}; do
             echo "Test attempt $attempt/3"
 
             # Test FT transfer
             RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
               -H "Content-Type: application/json" \
-              -d '{"receiverId": "user.test.near", "amount": "1000000000000000000", "memo": "CI test"}' || echo "connection_error")
+              -d "{\"receiverId\": \"${RECEIVER_ID}\", \"amount\": \"1000000\", \"memo\": \"CI test\"}" || echo "connection_error")
 
             echo "API Response: $RESPONSE"
 
@@ -193,6 +205,7 @@ jobs:
           # Run Artillery benchmark
           echo "🎯 Running Artillery benchmark..."
           npx artillery run benchmark.yml --output benchmark-sandbox.json || true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
