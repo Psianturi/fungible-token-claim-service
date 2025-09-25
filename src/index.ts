@@ -441,12 +441,13 @@ app.post('/send-ft', async (req: Request, res: Response) => {
     let account: any;
 
     if (process.env.NEAR_ENV === 'sandbox') {
-      // Use near-api-js for sandbox
+      // Use near-workspaces for sandbox
       if (!nearInterface.account) {
         return res.status(500).send({ error: 'Sandbox account not initialized' });
       }
       account = nearInterface.account;
-      client = nearInterface.near; // For view calls
+      console.log('🔍 Sandbox debug - Account:', account.accountId);
+      console.log('🔍 Sandbox debug - FT Contract:', config.ftContract);
     } else {
       // Use @eclipseeer/near-api-ts for testnet
       if (!nearInterface.signer) {
@@ -555,6 +556,7 @@ app.post('/send-ft', async (req: Request, res: Response) => {
       const results = [];
 
       for (const transfer of transferList) {
+        console.log('🔍 About to call contract:', config.ftContract, 'method: ft_transfer');
         // Use near-workspaces call method
         const actionResult = await account.call(
           config.ftContract,
