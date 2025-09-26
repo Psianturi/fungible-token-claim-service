@@ -59,19 +59,25 @@ async function main() {
   // Get account handle
   const account = await near.account(signerAccountId);
 
-  // Create the contract account if it doesn't exist
+  // Create the contract account (always try to create it)
   let contractAccount;
   try {
-    contractAccount = await near.account(contractAccountId);
-    console.log('✅ Contract account already exists');
-  } catch (error) {
     console.log('📝 Creating contract account...');
     contractAccount = await account.createSubAccount(contractAccountId.split('.')[0]);
     console.log('✅ Contract account created');
+  } catch (error) {
+    // If creation fails (account already exists), get the existing account
+    console.log('⚠️ Contract account already exists, getting existing account...');
+    contractAccount = await near.account(contractAccountId);
+    console.log('✅ Got existing contract account');
+  }
 
-    // Register the same key for the contract account
+  // Always register the key for the contract account (whether newly created or existing)
+  try {
     await keyStore.setKey(networkConnection, contractAccountId, keyPair);
     console.log('✅ Key registered for contract account');
+  } catch (error) {
+    console.log('⚠️ Key might already be registered:', error.message);
   }
 
   // Read WASM file
