@@ -210,13 +210,36 @@ jobs:
             echo "CONTRACT_EXISTS=false" >> $GITHUB_ENV
           fi
 
-      - name: Skip FT contract deployment
+      - name: Deploy FT contract via near-cli-rs
         if: steps.install_neard.outputs.installed == 'false' && env.CONTRACT_EXISTS == 'false'
+        env:
+          NEAR_NETWORK_CONNECTION: sandbox
+          NEAR_CONTRACT_ACCOUNT_ID: test.near
+          NEAR_SIGNER_ACCOUNT_ID: test.near
         run: |
-          echo "⚠️ FT contract deployment skipped in CI"
-          echo "💡 Contract should be deployed manually using near-ft-helper"
-          echo "📍 Contract expected at: test.near"
-          echo "✅ Continuing with testing assuming contract exists"
+          set -euo pipefail
+          echo "🚀 Deploying FT contract via near-cli-rs..."
+          echo "Checking for fungible_token.wasm file..."
+          ls -la fungible_token.wasm
+
+          # Deploy contract using near-cli-rs
+          near contract deploy "$NEAR_CONTRACT_ACCOUNT_ID" fungible_token.wasm \
+            --network-config "$NEAR_NETWORK_CONNECTION" \
+            --signer "$NEAR_SIGNER_ACCOUNT_ID" \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY"
+
+          # Initialize contract
+          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" new_default_meta \
+            json-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
+            prepaid-gas '300000000000000' \
+            attached-deposit '0' \
+            --network-config "$NEAR_NETWORK_CONNECTION" \
+            --signer "$NEAR_SIGNER_ACCOUNT_ID" \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY"
+
+          echo "✅ FT contract deployed and initialized"
 
 
       - name: storage_deposit for test.near via near-cli-rs
@@ -230,14 +253,12 @@ jobs:
           ARGS='{"account_id":"test.near","registration_only":true}'
           echo "🧾 Registering storage for test.near"
           near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" storage_deposit json-args "$ARGS" \
-            --prepaid-gas '30 TeraGas' \
-            --attached-deposit '0.00125 NEAR' \
+            prepaid-gas '300000000000000' \
+            attached-deposit '1250000000000000000000' \
             --signer "$NEAR_SIGNER_ACCOUNT_ID" \
             --network-config "$NEAR_NETWORK_CONNECTION" \
-            sign-with-plaintext-private-key \
             --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
-            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
-            send || echo "storage_deposit may already exist"
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" || echo "storage_deposit may already exist"
           echo "✅ storage_deposit completed (or already exists)"
 
       - name: Run server (in background) and tests (sandbox)
