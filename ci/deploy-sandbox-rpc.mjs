@@ -16,6 +16,7 @@ import { connect, keyStores, KeyPair, utils } from 'near-api-js';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { createAccount as txCreateAccount, transfer as txTransfer, addKey as txAddKey, fullAccessKey as txFullAccessKey } from '@near-js/transactions';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -156,16 +157,31 @@ async function main() {
     }
     const pk = masterKeyPair.getPublicKey();
     console.log(`Creating account ${newAccountId} with initial balance ${amountYocto} yocto`);
-    await parent.createAccount(newAccountId, pk, amountYocto);
+    // Manually construct transaction to avoid signerId undefined bug in some environments
+    const actions = [
+      txCreateAccount(),
+      txTransfer(BigInt(amountYocto)),
+      txAddKey(pk, txFullAccessKey())
+    ];
+    await parent.signAndSendTransaction({
+      receiverId: newAccountId,
+      actions
+    });
   }
 
   // Ensure accounts with initial balance
   const initialBalance = utils.format.parseNearAmount('100');
-  await createAccountIfMissing(master, ftContractId, initialBalance);
+
+  // If FT_CONTRACT is the same as MASTER_ACCOUNT (test.near), skip creating subaccount to avoid signerId issues
+  if (ftContractId !== masterAccountId) {
+    await createAccountIfMissing(master, ftContractId, initialBalance);
+  } else {
+    console.log('Using master account as FT contract account; skipping ft.test.near creation');
+  }
   await createAccountIfMissing(master, userAccountId, initialBalance);
 
   // Deploy FT wasm
-  const ft = await near.account(ftContractId);
+  const ft = (ftContractId === masterAccountId) ? master : await near.account(ftContractId);
   const wasmPath = resolveWasmPath();
   console.log(`Deploying WASM from: ${wasmPath}`);
   const wasm = fs.readFileSync(wasmPath);
