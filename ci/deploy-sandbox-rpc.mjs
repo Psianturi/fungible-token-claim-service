@@ -80,13 +80,21 @@ function getSandboxKey(masterAccountId) {
 }
 
 function resolveWasmPath() {
-  // Primary: ft-claiming-service/fungible_token.wasm (../ from ci/)
-  const p1 = path.resolve(__dirname, '..', 'fungible_token.wasm');
-  if (fs.existsSync(p1)) return p1;
-  // Fallback: repoRoot/fungible_token.wasm (../../ from ci/ if project checked out differently)
-  const p2 = path.resolve(__dirname, '..', '..', 'fungible_token.wasm');
-  if (fs.existsSync(p2)) return p2;
-  throw new Error(`fungible_token.wasm not found. Tried:\n - ${p1}\n - ${p2}`);
+  const candidates = [
+    // Primary: ft-claiming-service/fungible_token.wasm (../ from ci/)
+    path.resolve(__dirname, '..', 'fungible_token.wasm'),
+    // Fallback: repoRoot/fungible_token.wasm (../../ from ci/ if project checked out differently)
+    path.resolve(__dirname, '..', '..', 'fungible_token.wasm'),
+    // Additional: res/fungible_token.wasm
+    path.resolve(__dirname, '..', 'res', 'fungible_token.wasm'),
+    path.resolve(__dirname, '..', '..', 'res', 'fungible_token.wasm')
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  throw new Error(`fungible_token.wasm not found. Tried:\n - ${candidates.join('\n - ')}`);
 }
 
 async function main() {
