@@ -1,0 +1,149 @@
+/**
+ * Deploy FT contract to a running neard sandbox via RPC (NOT near-workspaces).
+ * - Ensures accounts: test.near (MASTER), ft.test.near (FT contract), user.test.near (receiver)
+ * - Deploys fungible_token.wasm to ft.test.near
+ * - Initializes contract with new_default_meta (owner = test.near)
+ * - Registers storage for owner and receiver
+ *
+ * Required env:
+ *   - NODE_URL (default http://127.0.0.1:3030)
+ *   - MASTER_ACCOUNT (default test.near)
+ *   - MASTER_ACCOUNT_PRIVATE_KEY (ed25519:...)
+ *   - FT_CONTRACT (default ft.test.near)
+ *   - RECEIVER_ID (default user.test.near)
+ */
+import { connect, keyStores, KeyPair, utils } from 'near-api-js';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function normalizeKey(pk) {
+  let s = String(pk || '').trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1);
+  }
+  if (!s.startsWith('ed25519:') && !s.startsWith('secp256k1:')) {
+    s = `ed25519:${s}`;
+  }
+  const idx = s.indexOf(':');
+  if (idx === -1) return s;
+  const curve = s.slice(0, idx);
+  let body = s.slice(idx + 1).replace(/\s+/g, '');
+  return `${curve}:${body}`;
+}
+
+function resolveWasmPath() {
+  // Primary: ft-claiming-service/fungible_token.wasm (../ from ci/)
+  const p1 = path.resolve(__dirname, '..', 'fungible_token.wasm');
+  if (fs.existsSync(p1)) return p1;
+  // Fallback: repoRoot/fungible_token.wasm (../../ from ci/ if project checked out differently)
+  const p2 = path.resolve(__dirname, '..', '..', 'fungible_token.wasm');
+  if (fs.existsSync(p2)) return p2;
+  throw new Error(`fungible_token.wasm not found. Tried:\n - ${p1}\n - ${p2}`);
+}
+
+async function main() {
+  const nodeUrl = process.env.NODE_URL || 'http://127.0.0.1:3030';
+  const networkId = 'sandbox';
+  const masterAccountId = process.env.MASTER_ACCOUNT || 'test.near';
+  const ftContractId = process.env.FT_CONTRACT || 'ft.test.near';
+  const userAccountId = process.env.RECEIVER_ID || 'user.test.near';
+  const rawKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
+
+  if (!rawKey) {
+    throw new Error('MASTER_ACCOUNT_PRIVATE_KEY is required');
+  }
+  const normalizedKey = normalizeKey(rawKey);
+
+  console.log('Deploying to sandbox RPC with params:');
+  console.log({ nodeUrl, networkId, masterAccountId, ftContractId, userAccountId });
+
+  const keyStore = new keyStores.InMemoryKeyStore();
+  const masterKeyPair = KeyPair.fromString(normalizedKey);
+
+  // Use the same key for created accounts (created with master's public key)
+  await keyStore.setKey(networkId, masterAccountId, masterKeyPair);
+  await keyStore.setKey(networkId, ftContractId, masterKeyPair);
+  await keyStore.setKey(networkId, userAccountId, masterKeyPair);
+
+  const near = await connect({ networkId, nodeUrl, deps: { keyStore } });
+  const master = await near.account(masterAccountId);
+
+  async function accountExists(accountId) {
+    try {
+      const acc = await near.account(accountId);
+      await acc.state();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function createAccountIfMissing(parent, newAccountId, amountYocto) {
+    if (await accountExists(newAccountId)) {
+      console.log(`Account exists: ${newAccountId}`);
+      return;
+    }
+    const pk = masterKeyPair.getPublicKey();
+    console.log(`Creating account ${newAccountId} with initial balance ${amountYocto} yocto`);
+    await parent.createAccount(newAccountId, pk, amountYocto);
+  }
+
+  // Ensure accounts with initial balance
+  const initialBalance = utils.format.parseNearAmount('100');
+  await createAccountIfMissing(master, ftContractId, initialBalance);
+  await createAccountIfMissing(master, userAccountId, initialBalance);
+
+  // Deploy FT wasm
+  const ft = await near.account(ftContractId);
+  const wasmPath = resolveWasmPath();
+  console.log(`Deploying WASM from: ${wasmPath}`);
+  const wasm = fs.readFileSync(wasmPath);
+  await ft.deployContract(wasm);
+
+  // Initialize FT contract
+  console.log('Initializing FT contract (new_default_meta)...');
+  try {
+    await ft.functionCall({
+      contractId: ftContractId,
+      methodName: 'new_default_meta',
+      args: {
+        owner_id: masterAccountId,
+        total_supply: '1000000000000000000000000000000'
+      },
+      gas: '30000000000000'
+    });
+  } catch (e) {
+    console.warn('new_default_meta may have already been called:', e?.message || e);
+  }
+
+  // Storage deposits for master and receiver
+  const storageDeposit = utils.format.parseNearAmount('0.00125');
+  for (const aid of [masterAccountId, userAccountId]) {
+    console.log(`Registering storage for ${aid} ...`);
+    try {
+      await ft.functionCall({
+        contractId: ftContractId,
+        methodName: 'storage_deposit',
+        args: { account_id: aid, registration_only: true },
+        gas: '30000000000000',
+        attachedDeposit: storageDeposit
+      });
+    } catch (e) {
+      console.warn(`storage_deposit for ${aid} may already exist or failed non-fatally:`, e?.message || e);
+    }
+  }
+
+  console.log('✅ FT deployed and initialized on sandbox RPC');
+  console.log(`   - Contract: ${ftContractId}`);
+  console.log(`   - Owner:    ${masterAccountId}`);
+  console.log(`   - Receiver: ${userAccountId}`);
+}
+
+main().catch((err) => {
+  console.error('❌ Deployment failed:', err);
+  process.exit(1);
+});
