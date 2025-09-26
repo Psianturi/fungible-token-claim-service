@@ -222,9 +222,24 @@ jobs:
           echo "Checking for fungible_token.wasm file..."
           ls -la fungible_token.wasm
 
-          # Use Node.js deploy script instead of near-cli-rs
-          echo "Using Node.js deploy script..."
-          node ci/deploy-sandbox-rpc.mjs
+          # Use near-cli with correct syntax
+          echo "Using near-cli with correct syntax..."
+          near contract deploy test.near \
+            --wasm-file fungible_token.wasm \
+            --network-config sandbox \
+            --signer test.near \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY"
+
+          # Initialize contract
+          near contract call-function as-transaction test.near new_default_meta \
+            json-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
+            prepaid-gas '300000000000000' \
+            attached-deposit '0' \
+            --network-config sandbox \
+            --signer test.near \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY"
 
           echo "✅ FT contract deployed and initialized"
 
