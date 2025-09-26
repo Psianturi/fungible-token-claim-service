@@ -68,6 +68,10 @@ async function main() {
     console.log('📝 Creating contract account...');
     contractAccount = await account.createSubAccount(contractAccountId.split('.')[0]);
     console.log('✅ Contract account created');
+
+    // Register the same key for the contract account
+    await keyStore.setKey(networkConnection, contractAccountId, keyPair);
+    console.log('✅ Key registered for contract account');
   }
 
   // Read WASM file
@@ -75,7 +79,7 @@ async function main() {
   console.log(`📄 WASM file size: ${wasm.length} bytes`);
 
   try {
-    // Deploy contract
+    // Deploy contract to the contract account (now has keys registered)
     console.log('🔨 Deploying contract...');
     await contractAccount.deployContract(wasm);
     console.log('✅ Contract deployed successfully!');
