@@ -221,15 +221,13 @@ jobs:
           echo "🚀 Deploying FT contract..."
           echo "Checking for fungible_token.wasm file..."
           ls -la fungible_token.wasm
-          near contract deploy "$NEAR_CONTRACT_ACCOUNT_ID" fungible_token.wasm \
+          near contract deploy "$NEAR_CONTRACT_ACCOUNT_ID" ./fungible_token.wasm \
             --init-function new_default_meta \
             --init-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
             --network-config "$NEAR_NETWORK_CONNECTION" \
             --signer "$NEAR_SIGNER_ACCOUNT_ID" \
-            sign-with-plaintext-private-key \
             --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
-            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
-            send
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY"
           echo "✅ FT contract deployed and initialized"
 
 
