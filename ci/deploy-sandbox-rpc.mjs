@@ -59,6 +59,17 @@ async function main() {
   // Get account handle
   const account = await near.account(signerAccountId);
 
+  // Create the contract account if it doesn't exist
+  let contractAccount;
+  try {
+    contractAccount = await near.account(contractAccountId);
+    console.log('✅ Contract account already exists');
+  } catch (error) {
+    console.log('📝 Creating contract account...');
+    contractAccount = await account.createSubAccount(contractAccountId.split('.')[0]);
+    console.log('✅ Contract account created');
+  }
+
   // Read WASM file
   const wasm = fs.readFileSync(wasmPath);
   console.log(`📄 WASM file size: ${wasm.length} bytes`);
@@ -66,12 +77,12 @@ async function main() {
   try {
     // Deploy contract
     console.log('🔨 Deploying contract...');
-    await account.deployContract(wasm);
+    await contractAccount.deployContract(wasm);
     console.log('✅ Contract deployed successfully!');
 
     // Initialize contract
     console.log('⚙️ Initializing contract...');
-    await account.functionCall({
+    await contractAccount.functionCall({
       contractId: contractAccountId,
       methodName: 'new_default_meta',
       args: {

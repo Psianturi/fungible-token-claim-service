@@ -79,7 +79,7 @@ jobs:
           echo "🚀 Deploying FT contract to sandbox..."
 
           # Set environment variables for deployment
-          export NEAR_CONTRACT_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_CONTRACT_ACCOUNT_ID="ft.${MASTER_ACCOUNT}"
           export NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}"
           export NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}"
           export NEAR_NETWORK_CONNECTION="sandbox"
@@ -97,7 +97,7 @@ jobs:
           echo "👥 Creating test accounts and setting up storage..."
 
           # Set environment variables for test account setup
-          export NEAR_CONTRACT_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_CONTRACT_ACCOUNT_ID="ft.${MASTER_ACCOUNT}"
           export NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}"
           export NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}"
           export NEAR_NETWORK_CONNECTION="sandbox"
@@ -121,7 +121,7 @@ jobs:
           # Start the API service in background
           NEAR_ENV=sandbox \
           NODE_URL=http://127.0.0.1:3030 \
-          FT_CONTRACT="${MASTER_ACCOUNT}" \
+          FT_CONTRACT="ft.${MASTER_ACCOUNT}" \
           MASTER_ACCOUNT="${MASTER_ACCOUNT}" \
           MASTER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}" \
           SKIP_STORAGE_CHECK=true \
