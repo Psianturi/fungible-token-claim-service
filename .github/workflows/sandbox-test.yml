@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           echo "Starting near-sandbox fallback (init + run)..."
           npx near-sandbox init || true
-          nohup npx near-sandbox run
+          nohup npx near-sandbox run > neard.log 2>&1 &
           # wait for jsonrpc
           for i in $(seq 1 60); do
             if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
@@ -153,7 +153,7 @@ jobs:
           if [ "$READY" -ne 1 ]; then
             echo "⚠️ Sandbox RPC not responding, attempting near-sandbox fallback start (init + run)..."
             npx near-sandbox init || true
-            nohup npx near-sandbox run
+            nohup npx near-sandbox run > neard.log 2>&1 &
             for i in $(seq 1 60); do
               if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
                 READY=1
