@@ -68,23 +68,21 @@ async function main() {
   console.log(`📄 WASM file size: ${wasm.length} bytes`);
 
   try {
-    // Deploy contract to the contract account (now has keys registered)
+    // Deploy contract using the standard near-api-js approach
     console.log('🔨 Deploying contract...');
     await contractAccount.deployContract(wasm);
     console.log('✅ Contract deployed successfully!');
 
-    // Initialize contract
+    // Initialize contract using the same pattern as near-ft-helper
     console.log('⚙️ Initializing contract...');
-    await contractAccount.functionCall({
-      contractId: contractAccountId,
-      methodName: 'new_default_meta',
-      args: {
+    await contractAccount.call(
+      contractAccountId,
+      'new_default_meta',
+      {
         owner_id: signerAccountId,
-        total_supply: '1000000000000000000000000000000'
-      },
-      gas: '300000000000000',
-      attachedDeposit: '0'
-    });
+        total_supply: '1000000000000000000000000' // Same as near-ft-helper
+      }
+    );
     console.log('✅ Contract initialized successfully!');
 
     // Register storage for signer account
