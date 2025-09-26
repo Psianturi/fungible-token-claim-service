@@ -16,7 +16,6 @@ import { connect, keyStores, KeyPair, utils } from 'near-api-js';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { spawnSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -182,25 +181,8 @@ async function main() {
     : await near.account(ftContractId);
   const wasmPath = resolveWasmPath();
   console.log(`Deploying WASM from: ${wasmPath}`);
-
-  if (credPath) {
-    console.log(`➡️  Using near-cli (v4) deploy with credentials: ${credPath}`);
-    const cli = spawnSync('npx', [
-      '-y', 'near-cli',
-      'deploy',
-      ftContractId,
-      wasmPath,
-      '--networkId', 'sandbox'
-    ], { stdio: 'inherit', env: cliEnv });
-
-    if (cli.status !== 0) {
-      throw new Error('near CLI deploy failed');
-    }
-  } else {
-    console.log('ℹ️ near-cli credentials not prepared; falling back to ft.deployContract via near-api-js v2');
-    const wasm = fs.readFileSync(wasmPath);
-    await ft.deployContract(wasm);
-  }
+  const wasm = fs.readFileSync(wasmPath);
+  await ft.deployContract(wasm);
 
   // Initialize FT contract
   console.log('Initializing FT contract (new_default_meta)...');
@@ -215,24 +197,7 @@ async function main() {
       gas: '30000000000000'
     });
   } catch (e) {
-    console.warn('new_default_meta via SDK failed or already called:', e?.message || e);
-    if (credPath) {
-      console.log('➡️  Trying near-cli (v4) fallback for new_default_meta');
-      const argsJson = JSON.stringify({
-        owner_id: masterAccountId,
-        total_supply: '1000000000000000000000000000000'
-      });
-      const cliInit = spawnSync('npx', [
-        '-y', 'near-cli',
-        'call', ftContractId, 'new_default_meta', argsJson,
-        '--accountId', masterAccountId,
-        '--networkId', 'sandbox',
-        '--gas', '30000000000000'
-      ], { stdio: 'inherit', env: cliEnv });
-      if (cliInit.status !== 0) {
-        throw new Error('near CLI new_default_meta failed');
-      }
-    }
+    console.warn('new_default_meta may have already been called or failed non-fatally:', e?.message || e);
   }
 
   // Storage deposits for master and receiver
@@ -248,22 +213,7 @@ async function main() {
         attachedDeposit: storageDeposit
       });
     } catch (e) {
-      console.warn(`storage_deposit via SDK for ${aid} failed or already exists:`, e?.message || e);
-      if (credPath) {
-        console.log(`➡️  Trying near-cli (v4) fallback for storage_deposit (${aid})`);
-        const argsJson = JSON.stringify({ account_id: aid, registration_only: true });
-        const cliStorage = spawnSync('npx', [
-          '-y', 'near-cli',
-          'call', ftContractId, 'storage_deposit', argsJson,
-          '--accountId', masterAccountId,
-          '--networkId', 'sandbox',
-          '--gas', '30000000000000',
-          '--amount', '0.00125'
-        ], { stdio: 'inherit', env: cliEnv });
-        if (cliStorage.status !== 0) {
-          console.warn(`⚠️ near CLI storage_deposit failed for ${aid}`);
-        }
-      }
+      console.warn(`storage_deposit for ${aid} may already exist or failed non-fatally:`, e?.message || e);
     }
   }
 
