@@ -1,4 +1,6 @@
 import { config } from './config.js';
+import fs from 'fs';
+import path from 'path';
 
 const normalizeKey = (pk: string): string => {
   let s = (pk || '').trim();
@@ -33,6 +35,51 @@ class NearConnectionManager {
   private isUsingNearApiJs = false;
 
   private constructor() {}
+
+  // Try to read validator_key.json produced by near-sandbox and return the secret key for the desired masterAccountId
+  private getSandboxKey(masterAccountId: string): string | null {
+    try {
+      const home = process.env.HOME || '';
+      const nearHome = process.env.NEAR_HOME || (home ? path.join(home, '.near') : '');
+      const candidates = [
+        nearHome ? path.join(nearHome, 'validator_key.json') : '',
+        nearHome ? path.join(nearHome, 'data', 'validator_key.json') : '',
+        nearHome ? path.join(nearHome, 'node', 'validator_key.json') : '',
+        nearHome ? path.join(nearHome, 'node0', 'validator_key.json') : '',
+        home ? path.join(home, '.near', 'validator_key.json') : '',
+        home ? path.join(home, '.near', 'data', 'validator_key.json') : '',
+        home ? path.join(home, '.near', 'node', 'validator_key.json') : '',
+        home ? path.join(home, '.near', 'node0', 'validator_key.json') : '',
+        home ? path.join(home, '.near', 'sandbox', 'validator_key.json') : '',
+      ].filter(Boolean) as string[];
+
+      console.log('🔎 near.ts getSandboxKey() candidates:', JSON.stringify(candidates, null, 2));
+
+      for (const p of candidates) {
+        if (p && fs.existsSync(p)) {
+          try {
+            const raw = fs.readFileSync(p, 'utf-8');
+            const data = JSON.parse(raw);
+            const key = data.secret_key || data.private_key || null;
+            const accountId = data.account_id || null;
+            if (key && accountId === masterAccountId) {
+              console.log(`✅ near.ts found matching validator key at: ${p} for account: ${accountId}`);
+              return key as string;
+            } else if (key) {
+              console.log(`⚠️ near.ts found validator key at: ${p} but account mismatch (expected: ${masterAccountId}, found: ${accountId})`);
+            }
+          } catch (e: any) {
+            console.warn(`⚠️ near.ts failed reading key at ${p}:`, e?.message || e);
+          }
+        }
+      }
+      console.warn('⚠️ near.ts no matching validator_key.json found for account:', masterAccountId);
+      return null;
+    } catch (e: any) {
+      console.warn('⚠️ near.ts getSandboxKey() error:', e?.message || e);
+      return null;
+    }
+  }
 
   static getInstance(): NearConnectionManager {
     if (!NearConnectionManager.instance) {
@@ -83,14 +130,25 @@ class NearConnectionManager {
 
     const masterAccountId = config.masterAccount || 'test.near';
     const nodeUrl = config.nodeUrl || 'http://127.0.0.1:3030';
-    const rawKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
-    if (!rawKey) {
-      throw new Error('MASTER_ACCOUNT_PRIVATE_KEY is required for sandbox');
+
+    // Prefer sandbox validator key for the master account (e.g. test.near), fallback to env
+    const sandboxKey = this.getSandboxKey(masterAccountId);
+    const envKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
+    const chosenKey = sandboxKey || envKey;
+
+    if (!chosenKey) {
+      throw new Error('MASTER_ACCOUNT_PRIVATE_KEY or sandbox validator_key.json is required for sandbox');
     }
-    const normalizedKey = normalizeKey(rawKey);
+    const normalizedKey = normalizeKey(chosenKey);
 
     const keyStore = new keyStores.InMemoryKeyStore();
     await keyStore.setKey('sandbox', masterAccountId, KeyPair.fromString(normalizedKey));
+
+    // Defensive: also set in common namespaces to avoid signer namespace mismatches in some setups
+    try {
+      await keyStore.setKey('local', masterAccountId, KeyPair.fromString(normalizedKey));
+      await keyStore.setKey('default', masterAccountId, KeyPair.fromString(normalizedKey));
+    } catch (_) { /* noop */ }
 
     const near = await connect({
       networkId: 'sandbox',
@@ -107,6 +165,7 @@ class NearConnectionManager {
     console.log(`🔍 Sandbox RPC init (near-api-js):`);
     console.log(`   - nodeUrl: ${nodeUrl}`);
     console.log(`   - masterAccount: ${masterAccountId}`);
+    console.log(`   - key source: ${sandboxKey ? 'validator_key.json' : 'env MASTER_ACCOUNT_PRIVATE_KEY'}`);
 
     this.isUsingNearApiJs = true;
     console.log(`✅ NEAR init: near-api-js (sandbox RPC)`);

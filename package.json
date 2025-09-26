@@ -40,7 +40,7 @@
     "bull": "^4.16.5",
     "dotenv": "^16.0.0",
     "express": "^5.1.0",
-    "near-api-js": "^3.0.4",
+    "near-api-js": "^2.1.4",
     "node-fetch": "^2.7.0",
     "p-retry": "^7.0.0",
     "rate-limiter-flexible": "^7.3.2"
