@@ -97,7 +97,23 @@ jobs:
             exit 1
           fi
 
+      - name: Start NEAR sandbox via near-sandbox (npm fallback)
+        if: steps.install_neard.outputs.installed == 'false'
+        run: |
+          set -euo pipefail
+          echo "Starting near-sandbox fallback..."
+          npx near-sandbox &> neard.log &
+          # wait for jsonrpc
+          for i in $(seq 1 60); do
+            if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
+              echo "✅ near-sandbox fallback ready"
+              break
+            fi
+            sleep 1
+          done
+          curl -sS http://127.0.0.1:3030/status || (echo "near-sandbox fallback didn't start" && cat neard.log && exit 1)
       - name: Deploy FT contract to sandbox via RPC (near-api-js)
+        if: steps.install_neard.outputs.installed == 'true'
         env:
           NODE_URL: http://127.0.0.1:3030
           MASTER_ACCOUNT: test.near
@@ -122,8 +138,59 @@ jobs:
               head -n 5 "$p" || true
             fi
           done
+
+          echo "🔎 Checking sandbox RPC status before deploy..."
+          READY=0
+          for i in $(seq 1 30); do
+            if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            echo "⚠️ Sandbox RPC not responding, attempting near-sandbox fallback start..."
+            npx near-sandbox &> neard.log &
+            for i in $(seq 1 60); do
+              if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
+                READY=1
+                break
+              fi
+              sleep 1
+            done
+          fi
+
+          if [ "$READY" -ne 1 ]; then
+            echo "❌ Sandbox RPC still not responding, showing neard.log (if any) and failing"
+            [ -f neard.log ] && tail -n +1 neard.log || echo "neard.log not found"
+            exit 1
+          fi
+
           node ci/deploy-sandbox-rpc.mjs
           echo "✅ Contract deployment completed"
+
+      - name: Deploy FT contract to sandbox via RPC (near-sandbox fallback)
+        if: steps.install_neard.outputs.installed == 'false'
+        env:
+          NODE_URL: http://127.0.0.1:3030
+          MASTER_ACCOUNT: test.near
+          FT_CONTRACT: ft.test.near
+          RECEIVER_ID: user.test.near
+          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
+        run: |
+          set -euo pipefail
+          echo "🚀 Deploying FT contract to sandbox RPC (fallback)..."
+          echo "PWD: $(pwd)"
+          echo "Workspace listing:"
+          ls -la
+          echo "ci/ listing:"
+          ls -la ci
+          echo "HOME: ${HOME}"
+          echo "Listing ${HOME}/.near (if exists):"
+          ls -la "${HOME}/.near" || true
+          node ci/deploy-sandbox-rpc.mjs
+          echo "✅ Contract deployment (fallback) completed"
 
       - name: Fallback to run tests against testnet (if no sandbox)
         if: steps.install_neard.outputs.installed == 'false'
@@ -133,7 +200,8 @@ jobs:
           echo "FT_CONTRACT=posm.testnet" >> $GITHUB_ENV
           echo "MASTER_ACCOUNT=posm.testnet" >> $GITHUB_ENV
 
-      - name: Run server (in background) and tests
+      - name: Run server (in background) and tests (sandbox)
+        if: steps.install_neard.outputs.installed == 'true'
         env:
           NEAR_ENV: sandbox
           NODE_URL: http://127.0.0.1:3030
@@ -141,15 +209,9 @@ jobs:
           MASTER_ACCOUNT: test.near
           MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
         run: |
-          # start service with explicit environment
-          if [ "${NEAR_ENV}" = "sandbox" ]; then
-            npm run start:sandbox &> service.log &
-          else
-            npm start &> service.log &
-          fi
+          npm run start:sandbox &> service.log &
           sleep 3
 
-          # Wait for API to respond (up to 60s)
           for i in $(seq 1 60); do
             if curl -sS http://127.0.0.1:3000/health >/dev/null 2>&1; then
               echo "✅ service up and responding"
@@ -165,24 +227,15 @@ jobs:
             exit 1
           fi
 
-          # Run integration tests with retry
           echo "🧪 Running integration tests..."
           RECEIVER_ID="user.test.near"
-          if [ "${NEAR_ENV}" != "sandbox" ]; then
-            RECEIVER_ID="posma-badge.testnet"
-          fi
 
           for attempt in {1..3}; do
             echo "Test attempt $attempt/3"
-
-            # Test FT transfer
             RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
               -H "Content-Type: application/json" \
               -d "{\"receiverId\": \"${RECEIVER_ID}\", \"amount\": \"1000000\", \"memo\": \"CI test\"}" || echo "connection_error")
-
             echo "API Response: $RESPONSE"
-
-            # Check if transfer was successful
             if echo "$RESPONSE" | grep -q '"message"' && echo "$RESPONSE" | grep -q "FT transfer"; then
               echo "✅ FT transfer test passed!"
               break
@@ -196,7 +249,58 @@ jobs:
             fi
           done
 
-          # Run Artillery benchmark
+          echo "🎯 Running Artillery benchmark..."
+          npx artillery run benchmark.yml --output benchmark-sandbox.json || true
+
+      - name: Run server (in background) and tests (fallback)
+        if: steps.install_neard.outputs.installed == 'false'
+        env:
+          NEAR_ENV: sandbox
+          NODE_URL: http://127.0.0.1:3030
+          FT_CONTRACT: ft.test.near
+          MASTER_ACCOUNT: test.near
+          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
+        run: |
+          npm run start:sandbox &> service.log &
+          sleep 3
+
+          for i in $(seq 1 60); do
+            if curl -sS http://127.0.0.1:3000/health >/dev/null 2>&1; then
+              echo "✅ service up and responding"
+              break
+            fi
+            echo "⏳ Waiting for service... ($i/60)"
+            sleep 1
+          done
+
+          if [ $i -eq 60 ]; then
+            echo "❌ Service did not start within 1 minute"
+            cat service.log
+            exit 1
+          fi
+
+          echo "🧪 Running integration tests..."
+          RECEIVER_ID="user.test.near"
+
+          for attempt in {1..3}; do
+            echo "Test attempt $attempt/3"
+            RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
+              -H "Content-Type: application/json" \
+              -d "{\"receiverId\": \"${RECEIVER_ID}\", \"amount\": \"1000000\", \"memo\": \"CI test\"}" || echo "connection_error")
+            echo "API Response: $RESPONSE"
+            if echo "$RESPONSE" | grep -q '"message"' && echo "$RESPONSE" | grep -q "FT transfer"; then
+              echo "✅ FT transfer test passed!"
+              break
+            else
+              echo "❌ FT transfer test failed (attempt $attempt)"
+              if [ $attempt -eq 3 ]; then
+                echo "Final response: $RESPONSE"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+
           echo "🎯 Running Artillery benchmark..."
           npx artillery run benchmark.yml --output benchmark-sandbox.json || true
 
