@@ -103,7 +103,7 @@ jobs:
           MASTER_ACCOUNT: test.near
           FT_CONTRACT: ft.test.near
           RECEIVER_ID: user.test.near
-          NEAR_HOME: ${{ env.HOME }}/.near
+          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
         run: |
           set -euo pipefail
           echo "🚀 Deploying FT contract to sandbox RPC..."
@@ -112,19 +112,16 @@ jobs:
           ls -la
           echo "ci/ listing:"
           ls -la ci
-          echo "NEAR_HOME: ${NEAR_HOME}"
-          echo "Listing NEAR_HOME:"
-          ls -la "${NEAR_HOME}" || true
-          echo "Listing NEAR_HOME/data:"
-          ls -la "${NEAR_HOME}/data" || true
+          echo "HOME: ${HOME}"
+          echo "Listing ${HOME}/.near (if exists):"
+          ls -la "${HOME}/.near" || true
           echo "Attempt to print validator_key.json locations (if any):"
-          for p in "${NEAR_HOME}/validator_key.json" "${NEAR_HOME}/data/validator_key.json" "${HOME}/.near/validator_key.json" "${HOME}/.near/data/validator_key.json" "${HOME}/.near/sandbox/validator_key.json"; do
+          for p in "${HOME}/.near/validator_key.json" "${HOME}/.near/data/validator_key.json" "${HOME}/.near/node/validator_key.json" "${HOME}/.near/node0/validator_key.json" "${HOME}/.near/sandbox/validator_key.json"; do
             if [ -f "$p" ]; then
               echo "Found: $p"
               head -n 5 "$p" || true
             fi
           done
-          # Directly execute the CI deploy script at repo root
           node ci/deploy-sandbox-rpc.mjs
           echo "✅ Contract deployment completed"
 
