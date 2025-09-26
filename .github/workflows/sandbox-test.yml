@@ -188,7 +188,7 @@ jobs:
           echo "NEAR_SIGNER_ACCOUNT_PRIVATE_KEY=${PRIV}" >> $GITHUB_ENV
           # Add custom network config for sandbox
           mkdir -p "${HOME}/.config/near-cli"
-          printf "version = \"0.1.0\"\n\n[networks.sandbox]\nrpc_url = \"%s\"\n" "${NODE_URL}" > "${HOME}/.config/near-cli/config.toml"
+          printf "version = 1\n\n[networks.sandbox]\nrpc_url = \"%s\"\n" "${NODE_URL}" > "${HOME}/.config/near-cli/config.toml"
           echo "near-cli-rs config:"
           cat "${HOME}/.config/near-cli/config.toml" || true
 
@@ -201,8 +201,11 @@ jobs:
         run: |
           set -euo pipefail
           echo "🚀 near-cli-rs deploy code"
+          echo "Checking for fungible_token.wasm file..."
+          ls -la fungible_token.wasm
           near contract deploy "$NEAR_CONTRACT_ACCOUNT_ID" \
-            --wasm-file "fungible_token.wasm" \
+            --init-method new_default_meta \
+            --init-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
             network-config "$NEAR_NETWORK_CONNECTION" \
             sign-as "$NEAR_SIGNER_ACCOUNT_ID" \
             sign-with-plaintext-private-key \
@@ -211,26 +214,6 @@ jobs:
             send
           echo "✅ Contract code deployed"
 
-      - name: Initialize FT via near-cli-rs (new_default_meta)
-        if: steps.install_neard.outputs.installed == 'false'
-        env:
-          NEAR_NETWORK_CONNECTION: sandbox
-          NEAR_CONTRACT_ACCOUNT_ID: test.near
-          NEAR_SIGNER_ACCOUNT_ID: test.near
-        run: |
-          set -euo pipefail
-          ARGS='{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}'
-          echo "⚙️ Initializing FT (new_default_meta)"
-          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" 'new_default_meta' json-args "$ARGS" \
-            prepaid-gas '30 TeraGas' \
-            attached-deposit '0 NEAR' \
-            sign-as "$NEAR_SIGNER_ACCOUNT_ID" \
-            network-config "$NEAR_NETWORK_CONNECTION" \
-            sign-with-plaintext-private-key \
-            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
-            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
-            send || echo "new_default_meta likely already initialized"
-          echo "✅ FT init step completed (or already initialized)"
 
       - name: storage_deposit for test.near via near-cli-rs
         if: steps.install_neard.outputs.installed == 'false'
