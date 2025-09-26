@@ -17,6 +17,7 @@ async function main() {
   const signerAccountId = process.env.NEAR_SIGNER_ACCOUNT_ID || 'test.near';
   const signerPrivateKey = process.env.NEAR_SIGNER_ACCOUNT_PRIVATE_KEY;
   const networkConnection = process.env.NEAR_NETWORK_CONNECTION || 'sandbox';
+  const nodeUrl = process.env.NEAR_NODE_URL || 'http://127.0.0.1:3030';
 
   if (!contractAccountId || !signerAccountId || !signerPrivateKey) {
     throw new Error('Missing required environment variables');
@@ -25,15 +26,12 @@ async function main() {
   console.log(`📦 Contract: ${contractAccountId}`);
   console.log(`🔑 Signer: ${signerAccountId}`);
 
-  // Setup key store - handle key format properly
   const keyStore = new keyStores.InMemoryKeyStore();
   let keyPair;
   try {
-    // Try with full key first (ed25519:...)
     keyPair = utils.KeyPair.fromString(signerPrivateKey);
   } catch (error) {
     console.log('Failed to parse key with prefix, trying without prefix...');
-    // If that fails, try without ed25519: prefix
     const keyWithoutPrefix = signerPrivateKey.replace(/^ed25519:/, '');
     keyPair = utils.KeyPair.fromString(keyWithoutPrefix);
   }
@@ -42,40 +40,50 @@ async function main() {
   // Connect to NEAR
   const near = await connect({
     networkId: networkConnection,
-    nodeUrl: 'http://127.0.0.1:3030',
+    nodeUrl,
     deps: { keyStore },
   });
 
   // Get master account
   const masterAccount = await near.account(signerAccountId);
 
-  // Create test user account
+  // Create or reuse test user account
   console.log('Creating test user account...');
   const userAccountId = `user.${signerAccountId}`;
   let userAccount;
-
   try {
-    // Check if user account already exists
     userAccount = await near.account(userAccountId);
     console.log('✅ User account already exists:', userAccountId);
-  } catch (error) {
-    // Create new sub-account
-    userAccount = await masterAccount.createSubAccount('user');
+  } catch (_) {
+    const userKeyPair = utils.KeyPair.fromRandom('ed25519');
+    await keyStore.setKey(networkConnection, userAccountId, userKeyPair);
+    await masterAccount.createAccount(
+      userAccountId,
+      userKeyPair.getPublicKey(),
+      utils.format.parseNearAmount('5')
+    );
+    userAccount = await near.account(userAccountId);
     console.log('✅ Created user account:', userAccount.accountId);
   }
 
   // Register storage for user account
   console.log('Registering storage for user account...');
   try {
-    await masterAccount.call(
-      contractAccountId,
-      'storage_deposit',
-      { account_id: userAccount.accountId, registration_only: true },
-      { attachedDeposit: utils.format.parseNearAmount('0.00125') }
-    );
+    await masterAccount.functionCall({
+      contractId: contractAccountId,
+      methodName: 'storage_deposit',
+      args: { account_id: userAccount.accountId, registration_only: true },
+      gas: '30000000000000',
+      attachedDeposit: utils.format.parseNearAmount('0.00125')
+    });
     console.log('✅ Storage registered for user account');
   } catch (error) {
-    console.log('⚠️ Storage might already be registered:', error.message);
+    const message = error?.message || String(error);
+    if (message.includes('already registered')) {
+      console.log('⚠️ Storage already registered, continuing...');
+    } else {
+      console.log('⚠️ Storage registration may have failed:', message);
+    }
   }
 
   // Output the user account ID for GitHub Actions

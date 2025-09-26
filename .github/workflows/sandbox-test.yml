@@ -69,34 +69,50 @@ jobs:
             echo "Using key: ${SECRET_KEY:0:10}..."
             echo "MASTER_ACCOUNT_PRIVATE_KEY=$SECRET_KEY" >> $GITHUB_ENV
             echo "MASTER_ACCOUNT=$ACCOUNT_ID" >> $GITHUB_ENV
+            echo "FT_CONTRACT=$ACCOUNT_ID" >> $GITHUB_ENV
           else
             echo "❌ validator_key.json not found"
             exit 1
           fi
-      - name: Skip FT contract deployment in CI
+      - name: Deploy FT contract to sandbox
         run: |
           set -euo pipefail
-          echo "⚠️ Skipping FT contract deployment in CI due to serialization compatibility issues"
-          echo "💡 Contract deployment tested separately - focusing on API service testing"
-          echo "📝 Assuming contract is available at ${MASTER_ACCOUNT}"
-          echo "✅ Proceeding with API integration tests"
+          echo "� Deploying FT contract to sandbox..."
+          export NEAR_CONTRACT_ACCOUNT_ID="${FT_CONTRACT}"
+          export NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}"
+          export NEAR_NETWORK_CONNECTION=sandbox
+          export NEAR_NODE_URL=http://127.0.0.1:3030
+          node ci/deploy-sandbox-rpc.mjs
+          echo "✅ FT contract ready at ${NEAR_CONTRACT_ACCOUNT_ID}"
 
       - name: Create test accounts for API testing
         run: |
           set -euo pipefail
           echo "👥 Creating test accounts for API testing..."
 
-          # Set environment variables for test account setup
-          export NEAR_CONTRACT_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_CONTRACT_ACCOUNT_ID="${FT_CONTRACT}"
           export NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}"
           export NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}"
-          export NEAR_NETWORK_CONNECTION="sandbox"
+          export NEAR_NETWORK_CONNECTION=sandbox
+          export NEAR_NODE_URL=http://127.0.0.1:3030
 
-          # For CI testing, create a simple test user account without storage setup
-          # since we're skipping contract deployment
-          echo "USER_ACCOUNT_ID=user.${MASTER_ACCOUNT}" >> $GITHUB_ENV
-          echo "✅ Test accounts setup complete - User account: user.${MASTER_ACCOUNT}"
-          echo "⚠️ Storage setup skipped (contract deployment skipped)"
+          OUTPUT=$(node ci/setup-test-accounts.mjs)
+          echo "$OUTPUT"
+          USER_ACCOUNT_ID=$(echo "$OUTPUT" | grep 'USER_ACCOUNT_ID=' | tail -n1 | cut -d'=' -f2)
+          if [ -z "$USER_ACCOUNT_ID" ]; then
+            echo "❌ Failed to capture USER_ACCOUNT_ID from setup output"
+            exit 1
+          fi
+          echo "USER_ACCOUNT_ID=$USER_ACCOUNT_ID" >> $GITHUB_ENV
+          echo "✅ Test accounts setup complete - User account: $USER_ACCOUNT_ID"
+
+      - name: Show NEAR environment summary
+        run: |
+          set -euo pipefail
+          echo "MASTER_ACCOUNT=${MASTER_ACCOUNT}"
+          echo "FT_CONTRACT=${FT_CONTRACT}"
+          echo "USER_ACCOUNT_ID=${USER_ACCOUNT_ID}"
 
       - name: Run API service and integration tests
         run: |
@@ -106,12 +122,16 @@ jobs:
           # Start the API service in background
           NEAR_ENV=sandbox \
           NODE_URL=http://127.0.0.1:3030 \
-          FT_CONTRACT="${MASTER_ACCOUNT}" \
+          FT_CONTRACT="${FT_CONTRACT}" \
           MASTER_ACCOUNT="${MASTER_ACCOUNT}" \
           MASTER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}" \
-          SKIP_STORAGE_CHECK=true \
           npm run start:sandbox &> service.log &
           SERVICE_PID=$!
+
+          cleanup() {
+            kill $SERVICE_PID 2>/dev/null || true
+          }
+          trap cleanup EXIT
 
           # Wait for service to be ready
           echo "⏳ Waiting for API service to start..."
@@ -131,65 +151,66 @@ jobs:
             exit 1
           fi
 
-          echo "🧪 Running send-ft integration tests..."
-          echo "⚠️ Note: Contract not deployed in CI, testing API service logic only"
-
-          # Test 1: API service health and request validation
-          echo "Test 1: API request validation"
-          RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
+          echo "🧪 Running send-ft integration test..."
+          RESPONSE_CODE=$(curl -sS -o response.json -w "%{http_code}" \
+            -X POST http://127.0.0.1:3000/send-ft \
             -H "Content-Type: application/json" \
-            -d "{\"receiverId\": \"${USER_ACCOUNT_ID}\", \"amount\": \"1000000\", \"memo\": \"CI integration test\"}" || echo "connection_error")
+            -d "{\"receiverId\": \"${USER_ACCOUNT_ID}\", \"amount\": \"1000000\", \"memo\": \"CI integration test\"}")
+          cat response.json
 
-          echo "API Response: $RESPONSE"
-
-          # Since contract is not deployed, we expect either:
-          # - A proper error response (indicating API service is working)
-          # - Or the service should handle the request gracefully
-          if echo "$RESPONSE" | grep -q '"error"' || echo "$RESPONSE" | grep -q '"message"'; then
-            echo "✅ API service responded correctly!"
-          else
-            echo "❌ API service not responding properly"
-            echo "Response: $RESPONSE"
-            kill $SERVICE_PID 2>/dev/null || true
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "❌ send-ft request failed with HTTP $RESPONSE_CODE"
             exit 1
           fi
 
-          # Test 2: Invalid receiver ID (security test) - this should work regardless of contract
-          echo "Test 2: Security test - Invalid receiver ID"
-          RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
-            -H "Content-Type: application/json" \
-            -d "{\"receiverId\": \"invalid..account\", \"amount\": \"1000000\"}" || echo "connection_error")
-
-          if echo "$RESPONSE" | grep -q '"error"' && echo "$RESPONSE" | grep -q "Invalid receiverId"; then
-            echo "✅ Security test passed - invalid receiver rejected!"
-          else
-            echo "❌ Security test failed - invalid receiver should be rejected"
-            echo "Response: $RESPONSE"
-            kill $SERVICE_PID 2>/dev/null || true
+          if ! jq -e '.message | test("initiated successfully")' response.json >/dev/null; then
+            echo "❌ Unexpected response payload"
             exit 1
           fi
 
-          # Test 3: Missing required fields
-          echo "Test 3: Validation test - Missing receiverId"
-          RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
-            -H "Content-Type: application/json" \
-            -d "{\"amount\": \"1000000\"}" || echo "connection_error")
+          echo "✅ send-ft request succeeded"
 
-          if echo "$RESPONSE" | grep -q '"error"' && echo "$RESPONSE" | grep -q "receiverId"; then
-            echo "✅ Validation test passed - missing field rejected!"
-          else
-            echo "❌ Validation test failed - missing field should be rejected"
-            echo "Response: $RESPONSE"
-            kill $SERVICE_PID 2>/dev/null || true
+          echo "🔍 Verifying receiver token balance..."
+          NEAR_NODE_URL=http://127.0.0.1:3030 \
+          NEAR_CONTRACT_ACCOUNT_ID="${FT_CONTRACT}" \
+          NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}" \
+          NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}" \
+          RECEIVER_ACCOUNT_ID="${USER_ACCOUNT_ID}" \
+          node ci/assert-receiver-balance.mjs
+          echo "✅ Receiver token balance verified"
+
+          echo "🔁 Running negative validation checks..."
+          INVALID_CODE=$(curl -sS -o invalid.json -w "%{http_code}" \
+            -X POST http://127.0.0.1:3000/send-ft \
+            -H "Content-Type: application/json" \
+            -d '{"receiverId":"invalid..account","amount":"1000000"}')
+          cat invalid.json
+          if [ "$INVALID_CODE" -ne 400 ]; then
+            echo "❌ Expected HTTP 400 for invalid receiver"
+            exit 1
+          fi
+          if ! jq -e '.error | test("Invalid receiverId")' invalid.json >/dev/null; then
+            echo "❌ Invalid receiver validation message missing"
             exit 1
           fi
 
-          echo "🎯 Skipping Artillery load test (contract not deployed in CI)"
-          echo "💡 Load testing requires deployed contract - tested separately"
-          echo "✅ CI focuses on API service logic and validation"
+          MISSING_CODE=$(curl -sS -o missing.json -w "%{http_code}" \
+            -X POST http://127.0.0.1:3000/send-ft \
+            -H "Content-Type: application/json" \
+            -d '{"amount":"1000000"}')
+          cat missing.json
+          if [ "$MISSING_CODE" -ne 400 ]; then
+            echo "❌ Expected HTTP 400 for missing receiver"
+            exit 1
+          fi
+          if ! jq -e '.error | test("receiverId")' missing.json >/dev/null; then
+            echo "❌ Missing field validation message missing"
+            exit 1
+          fi
 
-          # Cleanup
-          kill $SERVICE_PID 2>/dev/null || true
+          echo "✅ Negative validation checks passed"
+
+          echo "🎯 Skipping Artillery load test (not required for CI)"
           echo "✅ All integration tests passed!"
 
       - name: Upload logs on failure
