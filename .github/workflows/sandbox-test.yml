@@ -107,22 +107,13 @@ jobs:
         run: |
           set -euo pipefail
           echo "🚀 Deploying FT contract to sandbox RPC..."
-          # Try both possible locations (repo-root and legacy subdir)
-          if [ -f "helper/deploy-sandbox-rpc.mjs" ]; then
-            node helper/deploy-sandbox-rpc.mjs
-          elif [ -f "ft-claiming-service/helper/deploy-sandbox-rpc.mjs" ]; then
-            node ft-claiming-service/helper/deploy-sandbox-rpc.mjs
-          else
-            echo "❌ deploy-sandbox-rpc.mjs not found in expected locations"
-            echo "Listing workspace for debugging:"
-            pwd
-            ls -la || true
-            echo "Listing helper/ if exists:"
-            ls -la helper || true
-            echo "Listing ft-claiming-service/helper/ if exists:"
-            ls -la ft-claiming-service/helper || true
-            exit 1
-          fi
+          echo "PWD: $(pwd)"
+          echo "Workspace listing:"
+          ls -la
+          echo "ci/ listing:"
+          ls -la ci
+          # Directly execute the CI deploy script at repo root
+          node ci/deploy-sandbox-rpc.mjs
           echo "✅ Contract deployment completed"
 
       - name: Fallback to run tests against testnet (if no sandbox)
