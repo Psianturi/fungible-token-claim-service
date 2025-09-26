@@ -103,6 +103,7 @@ jobs:
           MASTER_ACCOUNT: test.near
           FT_CONTRACT: ft.test.near
           RECEIVER_ID: user.test.near
+          NEAR_HOME: ${{ env.HOME }}/.near
         run: |
           set -euo pipefail
           echo "🚀 Deploying FT contract to sandbox RPC..."
@@ -111,6 +112,18 @@ jobs:
           ls -la
           echo "ci/ listing:"
           ls -la ci
+          echo "NEAR_HOME: ${NEAR_HOME}"
+          echo "Listing NEAR_HOME:"
+          ls -la "${NEAR_HOME}" || true
+          echo "Listing NEAR_HOME/data:"
+          ls -la "${NEAR_HOME}/data" || true
+          echo "Attempt to print validator_key.json locations (if any):"
+          for p in "${NEAR_HOME}/validator_key.json" "${NEAR_HOME}/data/validator_key.json" "${HOME}/.near/validator_key.json" "${HOME}/.near/data/validator_key.json" "${HOME}/.near/sandbox/validator_key.json"; do
+            if [ -f "$p" ]; then
+              echo "Found: $p"
+              head -n 5 "$p" || true
+            fi
+          done
           # Directly execute the CI deploy script at repo root
           node ci/deploy-sandbox-rpc.mjs
           echo "✅ Contract deployment completed"

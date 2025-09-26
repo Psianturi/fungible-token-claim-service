@@ -38,19 +38,42 @@ function normalizeKey(pk) {
 function getSandboxKey() {
   try {
     const home = process.env.HOME || '';
+    const nearHome = process.env.NEAR_HOME || (home ? path.join(home, '.near') : '');
     const candidates = [
-      process.env.NEAR_HOME ? path.join(process.env.NEAR_HOME, 'validator_key.json') : '',
+      // Preferred: NEAR_HOME root and common subdirs
+      nearHome ? path.join(nearHome, 'validator_key.json') : '',
+      nearHome ? path.join(nearHome, 'data', 'validator_key.json') : '',
+      nearHome ? path.join(nearHome, 'node', 'validator_key.json') : '',
+      nearHome ? path.join(nearHome, 'node0', 'validator_key.json') : '',
+      // Home-based fallbacks
       home ? path.join(home, '.near', 'validator_key.json') : '',
+      home ? path.join(home, '.near', 'data', 'validator_key.json') : '',
+      home ? path.join(home, '.near', 'node', 'validator_key.json') : '',
+      home ? path.join(home, '.near', 'node0', 'validator_key.json') : '',
       home ? path.join(home, '.near', 'sandbox', 'validator_key.json') : '',
     ].filter(Boolean);
+
+    console.log('🔎 getSandboxKey() candidates:', JSON.stringify(candidates, null, 2));
+
     for (const p of candidates) {
       if (p && fs.existsSync(p)) {
-        const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
-        return data.secret_key || data.private_key || null;
+        try {
+          const raw = fs.readFileSync(p, 'utf-8');
+          const data = JSON.parse(raw);
+          const key = data.secret_key || data.private_key || null;
+          if (key) {
+            console.log(`✅ Found validator key at: ${p}`);
+            return key;
+          }
+        } catch (e) {
+          console.warn(`⚠️  Failed reading key at ${p}:`, e?.message || e);
+        }
       }
     }
+    console.warn('⚠️  No validator_key.json found in known locations.');
     return null;
-  } catch {
+  } catch (e) {
+    console.warn('⚠️  getSandboxKey() error:', e?.message || e);
     return null;
   }
 }
