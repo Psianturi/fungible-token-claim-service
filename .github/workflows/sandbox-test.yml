@@ -89,9 +89,9 @@ jobs:
         env:
           NODE_URL: http://127.0.0.1:3030
           MASTER_ACCOUNT: test.near
-          FT_CONTRACT: test.near
-          RECEIVER_ID: test.near
-          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
+          FT_CONTRACT: ft.test.near
+          RECEIVER_ID: user.test.near
+          MASTER_ACCOUNT_PRIVATE_KEY: ${{ secrets.SANDBOX_MASTER_SECRET }}
         run: |
           set -euo pipefail
           echo "🚀 Deploying FT contract to sandbox RPC..."
@@ -148,9 +148,9 @@ jobs:
         env:
           NODE_URL: http://127.0.0.1:3030
           MASTER_ACCOUNT: test.near
-          FT_CONTRACT: test.near
-          RECEIVER_ID: test.near
-          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
+          FT_CONTRACT: ft.test.near
+          RECEIVER_ID: user.test.near
+          MASTER_ACCOUNT_PRIVATE_KEY: ${{ secrets.SANDBOX_MASTER_SECRET }}
         run: |
           set -euo pipefail
           echo "🚀 Deploying FT contract to sandbox RPC (fallback)..."
@@ -165,22 +165,14 @@ jobs:
           node ci/deploy-sandbox-rpc.mjs
           echo "✅ Contract deployment (fallback) completed"
 
-      - name: Fallback to run tests against testnet (if no sandbox)
-        if: steps.install_neard.outputs.installed == 'false'
-        run: |
-          echo "neard not available in runner. We'll run integration steps against testnet as fallback."
-          echo "NEAR_ENV=testnet" >> $GITHUB_ENV
-          echo "FT_CONTRACT=posm.testnet" >> $GITHUB_ENV
-          echo "MASTER_ACCOUNT=posm.testnet" >> $GITHUB_ENV
-
       - name: Run server (in background) and tests (sandbox)
         if: steps.install_neard.outputs.installed == 'true'
         env:
           NEAR_ENV: sandbox
           NODE_URL: http://127.0.0.1:3030
-          FT_CONTRACT: test.near
+          FT_CONTRACT: ft.test.near
           MASTER_ACCOUNT: test.near
-          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
+          MASTER_ACCOUNT_PRIVATE_KEY: ${{ secrets.SANDBOX_MASTER_SECRET }}
         run: |
           npm run start:sandbox &> service.log &
           sleep 3
@@ -230,9 +222,9 @@ jobs:
         env:
           NEAR_ENV: sandbox
           NODE_URL: http://127.0.0.1:3030
-          FT_CONTRACT: test.near
+          FT_CONTRACT: ft.test.near
           MASTER_ACCOUNT: test.near
-          MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
+          MASTER_ACCOUNT_PRIVATE_KEY: ${{ secrets.SANDBOX_MASTER_SECRET }}
         run: |
           npm run start:sandbox &> service.log &
           sleep 3

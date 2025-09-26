@@ -360,6 +360,10 @@ app.get('/', (req: Request, res: Response) => {
   res.send('NEAR Fungible Token Claiming Service is running!');
 });
 
+app.get('/health', (req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.post('/send-ft', async (req: Request, res: Response) => {
   requestCount++; // Track TPS
   await concurrencyManager.acquire();

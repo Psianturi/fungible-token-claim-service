@@ -49,12 +49,12 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions with near-workspaces provides reliable testing
+- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions with near-sandbox CLI provides reliable testing
 - **Issue**: Local ES module global state conflicts prevented programmatic testing
-- **Solution**: GitHub Actions using `near-workspaces` for in-process sandbox testing
+- **Solution**: GitHub Actions using `near-sandbox` CLI for isolated sandbox testing
 - **CI/CD Pipeline**: `.github/workflows/sandbox-test.yml` provides automated sandbox testing
 - **Features**:
-  - Automated contract deployment via near-workspaces
+  - Automated contract deployment via RPC
   - API endpoint testing with live sandbox
   - Artillery benchmark execution
   - No Docker complexity - pure Node.js testing
@@ -104,12 +104,12 @@ ARTILLERY_FINAL_REPORT.md     # Sandbox benchmark results
 ## Testing
 
 ### Automated CI/CD Testing (Recommended)
-The project includes GitHub Actions workflow (`.github/workflows/sandbox-test.yml`) that provides reliable sandbox testing using Docker containers:
+The project includes GitHub Actions workflow (`.github/workflows/sandbox-test.yml`) that provides reliable sandbox testing using near-sandbox CLI:
 
-- ✅ **Automated contract deployment** to sandbox
+- ✅ **Automated contract deployment** to sandbox via RPC
 - ✅ **API endpoint testing** with health checks
 - ✅ **Artillery benchmark execution** in isolated environment
-- ✅ **No ES module conflicts** (Docker container isolation)
+- ✅ **No ES module conflicts** (near-sandbox CLI isolation)
 
 **Trigger**: Runs automatically on every push/PR to `main` branch.
 
