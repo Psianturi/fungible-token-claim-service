@@ -49,17 +49,17 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 - **Connection Issues**: 47,163 ECONNRESET failures
 
 ### Sandbox Results (Development)
-- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions with near-sandbox CLI provides reliable testing
-- **Issue**: Local ES module global state conflicts prevented programmatic testing
-- **Solution**: GitHub Actions using `near-sandbox` CLI for isolated sandbox testing
+- **Status**: ✅ **RESOLVED with CI/CD** - GitHub Actions uses near-sandbox runtime with near-cli-rs for contract deploy/calls
+- **Issue**: Local ES module global state conflicts prevented programmatic testing with SDK-only on some runners
+- **Solution**: GitHub Actions using `near-cli-rs` for deterministic deploy/init/storage against sandbox RPC
 - **CI/CD Pipeline**: `.github/workflows/sandbox-test.yml` provides automated sandbox testing
 - **Features**:
-  - Automated contract deployment via RPC
+  - Automated contract deployment via `near-cli-rs`
   - API endpoint testing with live sandbox
   - Artillery benchmark execution
-  - No Docker complexity - pure Node.js testing
+  - No Docker complexity - pure Node.js service + near-cli-rs for blockchain ops
 - **Local Development**: Use testnet environment (provides identical functionality)
-- **Note**: CI/CD pipeline ensures sandbox functionality works correctly without ES module conflicts
+- **Note**: near-cli-rs avoids JS borsh serialization edge cases on CI runners
 
 See [`ARTILLERY_TESTNET_RESULTS.md`](ARTILLERY_TESTNET_RESULTS.md) for complete testnet benchmark analysis.
 
@@ -104,12 +104,14 @@ ARTILLERY_FINAL_REPORT.md     # Sandbox benchmark results
 ## Testing
 
 ### Automated CI/CD Testing (Recommended)
-The project includes GitHub Actions workflow (`.github/workflows/sandbox-test.yml`) that provides reliable sandbox testing using near-sandbox CLI:
+The project includes GitHub Actions workflow (`.github/workflows/sandbox-test.yml`) that provides reliable sandbox testing using near-cli-rs:
 
-- ✅ **Automated contract deployment** to sandbox via RPC
+- ✅ **Automated contract deployment** to sandbox via near-cli-rs
+- ✅ **Initialization and storage registration** via near-cli-rs
 - ✅ **API endpoint testing** with health checks
 - ✅ **Artillery benchmark execution** in isolated environment
-- ✅ **No ES module conflicts** (near-sandbox CLI isolation)
+
+Tip: near-cli-rs is installed on the runner from official releases and configured to use the local sandbox RPC (http://127.0.0.1:3030).
 
 **Trigger**: Runs automatically on every push/PR to `main` branch.
 

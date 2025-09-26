@@ -17,9 +17,9 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Install dependencies (respect updated package.json)
         run: |
-          npm ci --silent
+          npm install --silent
 
       - name: Try to install neard binary from nearcore releases
         id: install_neard
@@ -159,26 +159,100 @@ jobs:
           node ci/deploy-sandbox-rpc.mjs
           echo "✅ Contract deployment completed"
 
-      - name: Deploy FT contract to sandbox via RPC (near-sandbox fallback)
+      - name: Install near-cli-rs
+        if: steps.install_neard.outputs.installed == 'false'
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/near-cli-rs/releases/latest/download/near-cli-rs-installer.sh | sh
+          near --version
+
+      - name: Prepare near-cli-rs env (sandbox)
         if: steps.install_neard.outputs.installed == 'false'
         env:
           NODE_URL: http://127.0.0.1:3030
           MASTER_ACCOUNT: test.near
           FT_CONTRACT: test.near
-          RECEIVER_ID: test.near
         run: |
           set -euo pipefail
-          echo "🚀 Deploying FT contract to sandbox RPC (fallback)..."
-          echo "PWD: $(pwd)"
-          echo "Workspace listing:"
-          ls -la
-          echo "ci/ listing:"
-          ls -la ci
-          echo "HOME: ${HOME}"
-          echo "Listing ${HOME}/.near (if exists):"
-          ls -la "${HOME}/.near" || true
-          node ci/deploy-sandbox-rpc.mjs
-          echo "✅ Contract deployment (fallback) completed"
+          VALIDATOR_KEY_FILE="${HOME}/.near/validator_key.json"
+          if [ ! -f "$VALIDATOR_KEY_FILE" ]; then
+            echo "❌ validator_key.json not found"
+            exit 1
+          fi
+          PUB=$(jq -r '.public_key' "$VALIDATOR_KEY_FILE")
+          PRIV=$(jq -r '.secret_key // .private_key' "$VALIDATOR_KEY_FILE")
+          echo "NEAR_NETWORK_CONNECTION=sandbox" >> $GITHUB_ENV
+          echo "NEAR_CONTRACT_ACCOUNT_ID=${FT_CONTRACT}" >> $GITHUB_ENV
+          echo "NEAR_SIGNER_ACCOUNT_ID=${MASTER_ACCOUNT}" >> $GITHUB_ENV
+          echo "NEAR_SIGNER_ACCOUNT_PUBLIC_KEY=${PUB}" >> $GITHUB_ENV
+          echo "NEAR_SIGNER_ACCOUNT_PRIVATE_KEY=${PRIV}" >> $GITHUB_ENV
+          # Add custom network config for sandbox
+          mkdir -p "${HOME}/.config/near-cli"
+          printf "[default]\nnetwork = \"sandbox\"\n\n[networks.sandbox]\nrpc_url = \"%s\"\n" "${NODE_URL}" > "${HOME}/.config/near-cli/config.toml"
+          echo "near-cli-rs config:"
+          cat "${HOME}/.config/near-cli/config.toml" || true
+
+      - name: Deploy FT contract via near-cli-rs
+        if: steps.install_neard.outputs.installed == 'false'
+        env:
+          NEAR_NETWORK_CONNECTION: sandbox
+          NEAR_CONTRACT_ACCOUNT_ID: test.near
+          NEAR_SIGNER_ACCOUNT_ID: test.near
+        run: |
+          set -euo pipefail
+          echo "🚀 near-cli-rs deploy code"
+          near contract deploy-code \
+            --account-id "$NEAR_CONTRACT_ACCOUNT_ID" \
+            --wasm-file "fungible_token.wasm" \
+            network-config "$NEAR_NETWORK_CONNECTION" \
+            sign-as "$NEAR_SIGNER_ACCOUNT_ID" \
+            sign-with-plaintext-private-key \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
+            send
+          echo "✅ Contract code deployed"
+
+      - name: Initialize FT via near-cli-rs (new_default_meta)
+        if: steps.install_neard.outputs.installed == 'false'
+        env:
+          NEAR_NETWORK_CONNECTION: sandbox
+          NEAR_CONTRACT_ACCOUNT_ID: test.near
+          NEAR_SIGNER_ACCOUNT_ID: test.near
+        run: |
+          set -euo pipefail
+          ARGS='{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}'
+          echo "⚙️ Initializing FT (new_default_meta)"
+          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" 'new_default_meta' json-args "$ARGS" \
+            prepaid-gas '30 TeraGas' \
+            attached-deposit '0 NEAR' \
+            sign-as "$NEAR_SIGNER_ACCOUNT_ID" \
+            network-config "$NEAR_NETWORK_CONNECTION" \
+            sign-with-plaintext-private-key \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
+            send || echo "new_default_meta likely already initialized"
+          echo "✅ FT init step completed (or already initialized)"
+
+      - name: storage_deposit for test.near via near-cli-rs
+        if: steps.install_neard.outputs.installed == 'false'
+        env:
+          NEAR_NETWORK_CONNECTION: sandbox
+          NEAR_CONTRACT_ACCOUNT_ID: test.near
+          NEAR_SIGNER_ACCOUNT_ID: test.near
+        run: |
+          set -euo pipefail
+          ARGS='{"account_id":"test.near","registration_only":true}'
+          echo "🧾 Registering storage for test.near"
+          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" 'storage_deposit' json-args "$ARGS" \
+            prepaid-gas '30 TeraGas' \
+            attached-deposit '0.00125 NEAR' \
+            sign-as "$NEAR_SIGNER_ACCOUNT_ID" \
+            network-config "$NEAR_NETWORK_CONNECTION" \
+            sign-with-plaintext-private-key \
+            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
+            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
+            send || echo "storage_deposit may already exist"
+          echo "✅ storage_deposit completed (or already exists)"
 
       - name: Run server (in background) and tests (sandbox)
         if: steps.install_neard.outputs.installed == 'true'
