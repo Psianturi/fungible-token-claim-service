@@ -170,7 +170,7 @@ jobs:
         if: steps.install_neard.outputs.installed == 'false'
         run: |
           echo "🔍 Skipping contract status check in CI"
-          echo "💡 Assuming FT contract exists at test.near"
+          echo "💡 Assuming FT contract exists at ft.test.near"
           echo "📝 Contract should be deployed manually before CI runs"
           echo "CONTRACT_EXISTS=true" >> $GITHUB_ENV
 
@@ -179,7 +179,7 @@ jobs:
         run: |
           echo "⚠️ FT contract deployment skipped in CI environment"
           echo "💡 Contract should be deployed manually for CI testing"
-          echo "📍 Expected contract: test.near on sandbox"
+          echo "📍 Expected contract: ft.test.near on sandbox"
           echo "✅ Continuing with testing assuming contract exists"
           echo "🔧 To deploy manually: use near-ft-helper or local sandbox"
 
@@ -248,7 +248,7 @@ jobs:
         env:
           NEAR_ENV: sandbox
           NODE_URL: http://127.0.0.1:3030
-          FT_CONTRACT: test.near
+          FT_CONTRACT: ft.test.near
           MASTER_ACCOUNT: test.near
         run: |
           npm run start:sandbox &> service.log &
