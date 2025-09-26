@@ -128,15 +128,8 @@ async function main() {
   });
 
   const near = await connect({ networkId, nodeUrl, deps: { keyStore } });
+  // Use official helper to construct Account to ensure internal fields are ready
   const master = await near.account(masterAccountId);
-
-  // Defensive: ensure accountId is set on the Account instance
-  // Some near-api-js versions may construct Account with missing accountId in edge environments.
-  if (!master.accountId) {
-    console.warn('⚠️ master.accountId is undefined, forcing accountId =', masterAccountId);
-    // @ts-ignore - force assign for runtime safety
-    master.accountId = masterAccountId;
-  }
   console.log('Master accountId check:', master.accountId);
 
   async function accountExists(accountId) {
@@ -177,7 +170,9 @@ async function main() {
   }
 
   // Deploy FT wasm
-  const ft = (ftContractId === masterAccountId) ? master : await near.account(ftContractId);
+  const ft = (ftContractId === masterAccountId)
+    ? master
+    : await near.account(ftContractId);
   const wasmPath = resolveWasmPath();
   console.log(`Deploying WASM from: ${wasmPath}`);
   const wasm = fs.readFileSync(wasmPath);
