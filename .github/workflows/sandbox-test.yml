@@ -90,7 +90,7 @@ jobs:
           NODE_URL: http://127.0.0.1:3030
           MASTER_ACCOUNT: test.near
           FT_CONTRACT: test.near
-          RECEIVER_ID: user.test.near
+          RECEIVER_ID: test.near
           MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
         run: |
           set -euo pipefail
@@ -149,7 +149,7 @@ jobs:
           NODE_URL: http://127.0.0.1:3030
           MASTER_ACCOUNT: test.near
           FT_CONTRACT: test.near
-          RECEIVER_ID: user.test.near
+          RECEIVER_ID: test.near
           MASTER_ACCOUNT_PRIVATE_KEY: ed25519:5c28XPtgXLrqfS22C8R8ynBiYvjjfu4BnH21wRrtvQeZyz4XiS3M7Fom867VcgPrfbxh3ui1SPXZ14Uz1chmeoi6
         run: |
           set -euo pipefail
