@@ -101,8 +101,9 @@ jobs:
         if: steps.install_neard.outputs.installed == 'false'
         run: |
           set -euo pipefail
-          echo "Starting near-sandbox fallback..."
-          npx near-sandbox &> neard.log &
+          echo "Starting near-sandbox fallback (init + run)..."
+          npx near-sandbox init --home "$HOME/.near" || true
+          nohup npx near-sandbox run --home "$HOME/.near" > neard.log 2>&1 &
           # wait for jsonrpc
           for i in $(seq 1 60); do
             if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
@@ -150,8 +151,9 @@ jobs:
           done
 
           if [ "$READY" -ne 1 ]; then
-            echo "⚠️ Sandbox RPC not responding, attempting near-sandbox fallback start..."
-            npx near-sandbox &> neard.log &
+            echo "⚠️ Sandbox RPC not responding, attempting near-sandbox fallback start (init + run)..."
+            npx near-sandbox init --home "$HOME/.near" || true
+            nohup npx near-sandbox run --home "$HOME/.near" > neard.log 2>&1 &
             for i in $(seq 1 60); do
               if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
                 READY=1
