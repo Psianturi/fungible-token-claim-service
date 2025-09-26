@@ -222,19 +222,11 @@ jobs:
           echo "Checking for fungible_token.wasm file..."
           ls -la fungible_token.wasm
 
-          # Step 1: Upload wasm code
-          near contract deploy-code "$NEAR_CONTRACT_ACCOUNT_ID" \
+          # Deploy and initialize contract in one command
+          near contract deploy "$NEAR_CONTRACT_ACCOUNT_ID" \
             --wasm-file fungible_token.wasm \
-            --network-config "$NEAR_NETWORK_CONNECTION" \
-            --signer "$NEAR_SIGNER_ACCOUNT_ID" \
-            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
-            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY"
-
-          # Step 2: Initialize contract
-          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" new_default_meta \
-            json-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
-            prepaid-gas '300000000000000' \
-            attached-deposit '0' \
+            --init-function new_default_meta \
+            --init-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
             --network-config "$NEAR_NETWORK_CONNECTION" \
             --signer "$NEAR_SIGNER_ACCOUNT_ID" \
             --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
