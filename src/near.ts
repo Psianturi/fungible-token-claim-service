@@ -11,7 +11,6 @@ const normalizeKey = (pk: string): string => {
   const idx = s.indexOf(':');
   if (idx === -1) return s;
   const curve = s.slice(0, idx);
-
   let body = s.slice(idx + 1).replace(/\s+/g, '');
   return `${curve}:${body}`;
 };
@@ -61,7 +60,6 @@ class NearConnectionManager {
     try {
       console.log('🚀 Starting NEAR connection initialization...');
 
-      // Determine which library to use based on network
       if (config.networkId === 'sandbox') {
         await this.initNearApiJs();
       } else if (config.networkId === 'testnet' || config.networkId === 'mainnet') {
@@ -79,34 +77,42 @@ class NearConnectionManager {
     }
   }
 
+  // Sandbox: connect to the running neard RPC via near-api-js (not near-workspaces)
   private async initNearApiJs(): Promise<void> {
-    // Use near-workspaces to connect to existing sandbox
-    const { Worker } = await import('near-workspaces');
+    const { connect, keyStores, KeyPair } = await import('near-api-js');
 
-    // Connect to existing sandbox instead of creating new one
-    const worker = await Worker.init({
-      network: 'sandbox',
-      // Don't create new sandbox, connect to existing
-      rm: false,
-      // Use the existing sandbox home directory
-      homeDir: process.env.NEAR_HOME || `${process.env.HOME}/.near`,
+    const masterAccountId = config.masterAccount || 'test.near';
+    const nodeUrl = config.nodeUrl || 'http://127.0.0.1:3030';
+    const rawKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
+    if (!rawKey) {
+      throw new Error('MASTER_ACCOUNT_PRIVATE_KEY is required for sandbox');
+    }
+    const normalizedKey = normalizeKey(rawKey);
+
+    const keyStore = new keyStores.InMemoryKeyStore();
+    await keyStore.setKey('sandbox', masterAccountId, KeyPair.fromString(normalizedKey));
+
+    const near = await connect({
+      networkId: 'sandbox',
+      nodeUrl,
+      deps: { keyStore },
     });
 
-    const masterAccount = worker.rootAccount;
+    const account = await near.account(masterAccountId);
 
-    // Store references for later use
-    this.nearApiJsNear = { worker };
-    this.nearApiJsAccount = masterAccount;
+    // Store references
+    this.nearApiJsNear = near;
+    this.nearApiJsAccount = account;
 
-    console.log(`🔍 Sandbox Account Debug:`);
-    console.log(`   - Connected to existing sandbox via near-workspaces`);
-    console.log(`   - Master account:`, masterAccount.accountId);
-    console.log(`   - Using existing sandbox (rm: false)`);
+    console.log(`🔍 Sandbox RPC init (near-api-js):`);
+    console.log(`   - nodeUrl: ${nodeUrl}`);
+    console.log(`   - masterAccount: ${masterAccountId}`);
 
     this.isUsingNearApiJs = true;
-    console.log(`✅ NEAR init: near-workspaces (sandbox) - Connected to existing sandbox`);
+    console.log(`✅ NEAR init: near-api-js (sandbox RPC)`);
   }
 
+  // Testnet/Mainnet: keep using @eclipseeer/near-api-ts
   private async initEclipseeerNearApiTs(): Promise<void> {
     const {
       createClient,
@@ -119,11 +125,10 @@ class NearConnectionManager {
     let network: any;
     const rpcUrlsEnv = process.env.RPC_URLS;
 
-    // Build common headers if provided
     const headers: Record<string, string> = {};
     const fastnearKey = process.env.FASTNEAR_API_KEY;
     if (fastnearKey) headers['x-api-key'] = fastnearKey;
-    const rpcHeadersEnv = process.env.RPC_HEADERS; // e.g. {"x-api-key":"...","authorization":"Bearer ..."}
+    const rpcHeadersEnv = process.env.RPC_HEADERS;
     if (rpcHeadersEnv) {
       try {
         const extra = JSON.parse(rpcHeadersEnv);
@@ -166,13 +171,8 @@ class NearConnectionManager {
       throw new Error(`Unsupported networkId: ${config.networkId}. Only testnet and mainnet are supported with @eclipseeer/near-api-ts.`);
     }
 
-    // Create client
     this.eclipseeerClient = createClient({ network });
 
-    // Create key service from one or more private keys
-    // Env:
-    //  - MASTER_ACCOUNT_PRIVATE_KEYS="ed25519:...,ed25519:...,..." (preferred for high-load)
-    //  - MASTER_ACCOUNT_PRIVATE_KEY="ed25519:..." (single-key fallback)
     console.log('🔍 Environment variables check:');
     console.log('MASTER_ACCOUNT_PRIVATE_KEY exists:', !!process.env.MASTER_ACCOUNT_PRIVATE_KEY);
     console.log('MASTER_ACCOUNT_PRIVATE_KEYS exists:', !!process.env.MASTER_ACCOUNT_PRIVATE_KEYS);
@@ -197,17 +197,14 @@ class NearConnectionManager {
       console.log('Using MASTER_ACCOUNT_PRIVATE_KEY');
     }
 
-    // Sanitize and normalize all keys from env to avoid base58 errors
     privateKeys = privateKeys.map(normalizeKey);
 
-    // Build key sources
     const keySources = privateKeys.map((privateKey) => ({ privateKey }));
 
     this.eclipseeerKeyService = await createMemoryKeyService({
       keySources,
     } as any);
 
-    // Derive public keys for key pool, if available
     let signingKeys: string[] = [];
     try {
       const keyPairs = (this.eclipseeerKeyService as any).getKeyPairs
@@ -215,11 +212,9 @@ class NearConnectionManager {
         : {};
       signingKeys = Object.keys(keyPairs);
     } catch {
-      // ignore, fallback to library's internal selection if not available
       signingKeys = [];
     }
 
-    // Create signer with optional key pool for load distribution
     this.eclipseeerSigner = await createMemorySigner({
       signerAccountId: config.masterAccount,
       client: this.eclipseeerClient,
@@ -242,31 +237,22 @@ class NearConnectionManager {
       if (!this.nearApiJsAccount) {
         throw new Error('Sandbox account not initialized');
       }
-      // For near-workspaces, return the account directly
-      return { account: this.nearApiJsAccount, worker: this.nearApiJsNear.worker };
+      // Return near-api-js account and near instance
+      return { account: this.nearApiJsAccount, near: this.nearApiJsNear };
     } else {
       if (!this.eclipseeerSigner) {
         throw new Error('Testnet signer not initialized');
       }
-      // Return @eclipseeer/near-api-ts interface (Signer)
       return { signer: this.eclipseeerSigner, client: this.eclipseeerClient };
     }
   }
 
   async cleanup(): Promise<void> {
-    if (this.isUsingNearApiJs && this.nearApiJsNear?.worker) {
-      console.log('🧹 Cleaning up NEAR sandbox worker...');
-      try {
-        await this.nearApiJsNear.worker.tearDown();
-        console.log('✅ Sandbox worker cleaned up successfully');
-      } catch (error) {
-        console.error('❌ Error cleaning up sandbox worker:', error);
-      }
-    }
+    // no-op for near-api-js RPC connections
   }
 }
 
-// Export singleton instance functions for backward compatibility
+// Export singleton instance functions
 const connectionManager = NearConnectionManager.getInstance();
 
 export const initNear = () => connectionManager.init();

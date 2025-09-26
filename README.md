@@ -3,7 +3,6 @@
 [![NEAR Sandbox Test](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml/badge.svg)](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![NEAR Protocol](https://img.shields.io/badge/NEAR-Protocol-blue)](https://near.org/)
-[![Performance](https://img.shields.io/badge/Performance-300%2B%20TPS-green)](https://github.com/Psianturi/fungible-token-claim-service)
 [![Security](https://img.shields.io/badge/Security-Hardened-red)](https://github.com/Psianturi/fungible-token-claim-service/security)
 [![Contract](https://img.shields.io/badge/Contract-Deployed-green)](https://github.com/Psianturi/fungible-token-claim-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
