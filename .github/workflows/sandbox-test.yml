@@ -25,37 +25,8 @@ jobs:
         id: install_neard
         run: |
           set -euo pipefail
-          VERSION="1.39.0"
-          TRIES=( "neard-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" "neard-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" )
-          OK=0
-          for name in "${TRIES[@]}"; do
-            URL="https://github.com/near/nearcore/releases/download/${VERSION}/${name}"
-            echo "Trying $URL ..."
-            if curl -sSL --fail -o /tmp/neard.tar.gz "$URL"; then
-              mkdir -p /tmp/neard_unpack
-              tar -xzf /tmp/neard.tar.gz -C /tmp/neard_unpack
-              if [ -f /tmp/neard_unpack/neard ]; then
-                sudo mv /tmp/neard_unpack/neard /usr/local/bin/neard
-                OK=1
-                break
-              fi
-              # try nested location
-              found=$(find /tmp/neard_unpack -type f -name neard | head -n1 || true)
-              if [ -n "$found" ]; then
-                sudo mv "$found" /usr/local/bin/neard
-                OK=1
-                break
-              fi
-            fi
-          done
-          if [ "$OK" -eq 1 ]; then
-            sudo chmod +x /usr/local/bin/neard
-            echo "neard installed"
-            echo "installed=true" >> $GITHUB_OUTPUT
-          else
-            echo "neard not installed"
-            echo "installed=false" >> $GITHUB_OUTPUT
-          fi
+          echo "Skipping neard install; using near-sandbox CLI fallback"
+          echo "installed=false" >> $GITHUB_OUTPUT
 
       - name: Start neard sandbox (if installed)
         if: steps.install_neard.outputs.installed == 'true'
