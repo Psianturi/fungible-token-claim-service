@@ -188,11 +188,11 @@ jobs:
           echo "NEAR_SIGNER_ACCOUNT_PRIVATE_KEY=${PRIV}" >> $GITHUB_ENV
           # Add custom network config for sandbox
           mkdir -p "${HOME}/.config/near-cli"
-          printf "version = \"1\"\ncredentials_home_dir = \"/home/runner/.near-credentials\"\n\n[network_connection.sandbox]\nrpc_url = \"%s\"\n" "${NODE_URL}" > "${HOME}/.config/near-cli/config.toml"
+          printf "version = \"1\"\ncredentials_home_dir = \"/home/runner/.near-credentials\"\n\n[network_connection.sandbox]\nnetwork_name = \"sandbox\"\nrpc_url = \"%s\"\n" "${NODE_URL}" > "${HOME}/.config/near-cli/config.toml"
           echo "near-cli-rs config:"
           cat "${HOME}/.config/near-cli/config.toml" || true
 
-      - name: Deploy FT contract via near-cli-rs
+      - name: Verify FT contract exists
         if: steps.install_neard.outputs.installed == 'false'
         env:
           NEAR_NETWORK_CONNECTION: sandbox
@@ -200,19 +200,15 @@ jobs:
           NEAR_SIGNER_ACCOUNT_ID: test.near
         run: |
           set -euo pipefail
-          echo "🚀 near-cli-rs deploy code"
-          echo "Checking for fungible_token.wasm file..."
-          ls -la fungible_token.wasm
-          near contract deploy "$NEAR_CONTRACT_ACCOUNT_ID" fungible_token.wasm \
-            --init-function new_default_meta \
-            --init-args '{"owner_id":"test.near","total_supply":"1000000000000000000000000000000"}' \
-            --network-config "$NEAR_NETWORK_CONNECTION" \
-            --signer "$NEAR_SIGNER_ACCOUNT_ID" \
-            sign-with-plaintext-private-key \
-            --signer-public-key "$NEAR_SIGNER_ACCOUNT_PUBLIC_KEY" \
-            --signer-private-key "$NEAR_SIGNER_ACCOUNT_PRIVATE_KEY" \
-            send
-          echo "✅ Contract code deployed"
+          echo "🔍 Verifying FT contract exists..."
+          if near contract call-function as-read "$NEAR_CONTRACT_ACCOUNT_ID" ft_total_supply json-args '{}' \
+            --network-config "$NEAR_NETWORK_CONNECTION" >/dev/null 2>&1; then
+            echo "✅ FT contract exists and is functional"
+          else
+            echo "❌ FT contract not found or not functional"
+            echo "💡 Please deploy FT contract first using: https://github.com/Psianturi/near-ft-helper"
+            exit 1
+          fi
 
 
       - name: storage_deposit for test.near via near-cli-rs
@@ -225,9 +221,9 @@ jobs:
           set -euo pipefail
           ARGS='{"account_id":"test.near","registration_only":true}'
           echo "🧾 Registering storage for test.near"
-          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" 'storage_deposit' json-args "$ARGS" \
-            prepaid-gas '30 TeraGas' \
-            attached-deposit '0.00125 NEAR' \
+          near contract call-function as-transaction "$NEAR_CONTRACT_ACCOUNT_ID" storage_deposit json-args "$ARGS" \
+            --prepaid-gas '30 TeraGas' \
+            --attached-deposit '0.00125 NEAR' \
             --signer "$NEAR_SIGNER_ACCOUNT_ID" \
             --network-config "$NEAR_NETWORK_CONNECTION" \
             sign-with-plaintext-private-key \
