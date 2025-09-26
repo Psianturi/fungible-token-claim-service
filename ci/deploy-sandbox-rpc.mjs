@@ -16,7 +16,7 @@ async function main() {
   console.log('🚀 Deploy script started...');
 
   // Load environment variables
-  const contractAccountId = process.env.NEAR_CONTRACT_ACCOUNT_ID || 'test.near';
+  const contractAccountId = process.env.NEAR_CONTRACT_ACCOUNT_ID || 'ft.test.near';
   const signerAccountId = process.env.NEAR_SIGNER_ACCOUNT_ID || 'test.near';
   const signerPrivateKey = process.env.NEAR_SIGNER_ACCOUNT_PRIVATE_KEY;
   const networkConnection = process.env.NEAR_NETWORK_CONNECTION || 'sandbox';
@@ -35,9 +35,18 @@ async function main() {
   console.log(`🔑 Using signer: ${signerAccountId}`);
   console.log(`🌐 Network: ${networkConnection}`);
 
-  // Setup key store
+  // Setup key store - handle key format properly
   const keyStore = new keyStores.InMemoryKeyStore();
-  const keyPair = utils.KeyPair.fromString(signerPrivateKey);
+  let keyPair;
+  try {
+    // Try with full key first (ed25519:...)
+    keyPair = utils.KeyPair.fromString(signerPrivateKey);
+  } catch (error) {
+    console.log('Failed to parse key with prefix, trying without prefix...');
+    // If that fails, try without ed25519: prefix
+    const keyWithoutPrefix = signerPrivateKey.replace(/^ed25519:/, '');
+    keyPair = utils.KeyPair.fromString(keyWithoutPrefix);
+  }
   await keyStore.setKey(networkConnection, signerAccountId, keyPair);
 
   // Connect to NEAR

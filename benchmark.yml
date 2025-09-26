@@ -39,11 +39,11 @@ environments:
       - duration: 30
         arrivalRate: 50
 scenarios:
-  - name: 'Send FT'
-    flow:
-      - post:
-          url: '/send-ft'
-          json:
-            receiverId: 'posma-badge.testnet'  # Use different testnet account
-            amount: '200'  # Small amount to avoid balance issues
-            memo: 'Artillery Test'
+   - name: 'Send FT'
+     flow:
+       - post:
+           url: '/send-ft'
+           json:
+             receiverId: '{{ receiverId }}'  # Use environment variable or default
+             amount: '1000000'  # Small amount for testing
+             memo: 'Artillery Load Test'

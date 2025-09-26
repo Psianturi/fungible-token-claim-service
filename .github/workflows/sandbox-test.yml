@@ -21,75 +21,46 @@ jobs:
         run: |
           npm install --silent
 
-      - name: Try to install neard binary from nearcore releases
-        id: install_neard
+      - name: Start NEAR sandbox
         run: |
           set -euo pipefail
-          echo "Skipping neard install; using near-sandbox CLI fallback"
-          echo "installed=false" >> $GITHUB_OUTPUT
+          echo "🚀 Starting NEAR sandbox..."
 
-      - name: Start neard sandbox (if installed)
-        if: steps.install_neard.outputs.installed == 'true'
-        run: |
-          set -euo pipefail
-          export NEAR_HOME="$HOME/.near"
-          mkdir -p "$NEAR_HOME"
-          # init if needed (non-fatal)
-          neard --home "$NEAR_HOME" init --chain-id sandbox || true
-          nohup neard --home "$NEAR_HOME" run > neard.log 2>&1 &
+          # Kill any existing sandbox processes
+          pkill -f near-sandbox || true
+          sleep 2
+
+          # Clean up any leftover processes
+          pkill -f neard || true
+          sleep 1
+
+          npx near-sandbox init || true
+          nohup npx near-sandbox run > neard.log 2>&1 &
+          SANDBOX_PID=$!
+
           # wait for jsonrpc
           for i in $(seq 1 60); do
             if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
-              echo "sandbox ready"
+              echo "✅ NEAR sandbox ready"
               break
             fi
+            echo "⏳ Waiting for sandbox... ($i/60)"
             sleep 1
-          done
-          curl -sS http://127.0.0.1:3030/status || (echo "neard didn't start" && cat neard.log && exit 1)
-
-      - name: Wait for NEAR Sandbox to be ready
-        if: steps.install_neard.outputs.installed == 'true'
-        run: |
-          set -euo pipefail
-          echo "⏳ Waiting for NEAR Sandbox to be fully ready..."
-
-          # Wait for sandbox RPC to respond
-          for i in $(seq 1 60); do
-            if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
-              echo "✅ Sandbox RPC is responding"
-              break
-            fi
-            echo "⏳ Waiting for sandbox RPC... ($i/60)"
-            sleep 2
           done
 
           if [ $i -eq 60 ]; then
-            echo "❌ Sandbox RPC did not respond within 2 minutes"
+            echo "❌ Sandbox failed to start within 60 seconds"
+            cat neard.log
+            kill $SANDBOX_PID 2>/dev/null || true
             exit 1
           fi
 
-      - name: Start NEAR sandbox via near-sandbox (npm fallback)
-        if: steps.install_neard.outputs.installed == 'false'
-        run: |
-          set -euo pipefail
-          echo "Starting near-sandbox fallback (init + run)..."
-          npx near-sandbox init || true
-          nohup npx near-sandbox run > neard.log 2>&1 &
-          # wait for jsonrpc
-          for i in $(seq 1 60); do
-            if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
-              echo "✅ near-sandbox fallback ready"
-              break
-            fi
-            sleep 1
-          done
-          curl -sS http://127.0.0.1:3030/status || (echo "near-sandbox fallback didn't start" && cat neard.log && exit 1)
+          curl -sS http://127.0.0.1:3030/status || (echo "near-sandbox didn't start properly" && cat neard.log && kill $SANDBOX_PID 2>/dev/null || true && exit 1)
 
       - name: Extract sandbox validator key
-        if: steps.install_neard.outputs.installed == 'false'
         run: |
           set -euo pipefail
-          echo "Extracting validator private key from near-sandbox..."
+          echo "🔑 Extracting validator private key..."
           VALIDATOR_KEY_FILE="${HOME}/.near/validator_key.json"
           if [ -f "$VALIDATOR_KEY_FILE" ]; then
             SECRET_KEY=$(jq -r '.secret_key // .private_key' "$VALIDATOR_KEY_FILE")
@@ -97,115 +68,71 @@ jobs:
             echo "Found account: $ACCOUNT_ID"
             echo "Using key: ${SECRET_KEY:0:10}..."
             echo "MASTER_ACCOUNT_PRIVATE_KEY=$SECRET_KEY" >> $GITHUB_ENV
+            echo "MASTER_ACCOUNT=$ACCOUNT_ID" >> $GITHUB_ENV
           else
             echo "❌ validator_key.json not found"
             exit 1
           fi
-      - name: Deploy FT contract to sandbox via RPC (near-api-js)
-        if: steps.install_neard.outputs.installed == 'true'
-        env:
-          NODE_URL: http://127.0.0.1:3030
-          MASTER_ACCOUNT: test.near
-          FT_CONTRACT: test.near
-          RECEIVER_ID: test.near
+      - name: Deploy FT contract to sandbox
         run: |
           set -euo pipefail
-          echo "🚀 Deploying FT contract to sandbox RPC..."
-          echo "PWD: $(pwd)"
-          echo "Workspace listing:"
-          ls -la
-          echo "ci/ listing:"
-          ls -la ci
-          echo "HOME: ${HOME}"
-          echo "Listing ${HOME}/.near (if exists):"
-          ls -la "${HOME}/.near" || true
-          echo "Attempt to print validator_key.json locations (if any):"
-          for p in "${HOME}/.near/validator_key.json" "${HOME}/.near/data/validator_key.json" "${HOME}/.near/node/validator_key.json" "${HOME}/.near/node0/validator_key.json" "${HOME}/.near/sandbox/validator_key.json"; do
-            if [ -f "$p" ]; then
-              echo "Found: $p"
-              head -n 5 "$p" || true
-            fi
-          done
+          echo "🚀 Deploying FT contract to sandbox..."
 
-          echo "🔎 Checking sandbox RPC status before deploy..."
-          READY=0
-          for i in $(seq 1 30); do
-            if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
-              READY=1
-              break
-            fi
-            sleep 1
-          done
+          # Set environment variables for deployment
+          export NEAR_CONTRACT_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}"
+          export NEAR_NETWORK_CONNECTION="sandbox"
 
-          if [ "$READY" -ne 1 ]; then
-            echo "⚠️ Sandbox RPC not responding, attempting near-sandbox fallback start (init + run)..."
-            npx near-sandbox init || true
-            nohup npx near-sandbox run > neard.log 2>&1 &
-            for i in $(seq 1 60); do
-              if curl -sS http://127.0.0.1:3030/status >/dev/null 2>&1; then
-                READY=1
-                break
-              fi
-              sleep 1
-            done
-          fi
+          echo "📦 Contract Account: ${NEAR_CONTRACT_ACCOUNT_ID}"
+          echo "🔑 Signer Account: ${NEAR_SIGNER_ACCOUNT_ID}"
 
-          if [ "$READY" -ne 1 ]; then
-            echo "❌ Sandbox RPC still not responding, showing neard.log (if any) and failing"
-            [ -f neard.log ] && tail -n +1 neard.log || echo "neard.log not found"
+          # Run deployment script
+          node ci/deploy-sandbox-rpc.mjs
+          echo "✅ FT contract deployed successfully"
+
+      - name: Create test accounts and setup storage
+        run: |
+          set -euo pipefail
+          echo "👥 Creating test accounts and setting up storage..."
+
+          # Set environment variables for test account setup
+          export NEAR_CONTRACT_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_SIGNER_ACCOUNT_ID="${MASTER_ACCOUNT}"
+          export NEAR_SIGNER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}"
+          export NEAR_NETWORK_CONNECTION="sandbox"
+
+          # Run the test account setup script
+          USER_ACCOUNT_ID=$(node ci/setup-test-accounts.mjs | grep "USER_ACCOUNT_ID=" | cut -d'=' -f2)
+
+          if [ -z "$USER_ACCOUNT_ID" ]; then
+            echo "❌ Failed to create test user account"
             exit 1
           fi
 
-          node ci/deploy-sandbox-rpc.mjs
-          echo "✅ Contract deployment completed"
+          echo "USER_ACCOUNT_ID=$USER_ACCOUNT_ID" >> $GITHUB_ENV
+          echo "✅ Test accounts setup complete - User account: $USER_ACCOUNT_ID"
 
-      - name: Skip CLI setup in CI
-        if: steps.install_neard.outputs.installed == 'false'
+      - name: Run API service and integration tests
         run: |
-          echo "🔧 Skipping CLI setup in CI environment"
-          echo "💡 No CLI tools needed for testing"
-          echo "✅ Continuing with pure application testing"
+          set -euo pipefail
+          echo "🚀 Starting API service for integration testing..."
 
-      - name: Assume FT contract exists for CI testing
-        if: steps.install_neard.outputs.installed == 'false'
-        run: |
-          echo "🔍 Skipping contract status check in CI"
-          echo "💡 Assuming FT contract exists at ft.test.near"
-          echo "📝 Contract should be deployed manually before CI runs"
-          echo "CONTRACT_EXISTS=true" >> $GITHUB_ENV
-
-      - name: Skip FT contract deployment in CI
-        if: steps.install_neard.outputs.installed == 'false' && env.CONTRACT_EXISTS == 'false'
-        run: |
-          echo "⚠️ FT contract deployment skipped in CI environment"
-          echo "💡 Contract should be deployed manually for CI testing"
-          echo "📍 Expected contract: ft.test.near on sandbox"
-          echo "✅ Continuing with testing assuming contract exists"
-          echo "🔧 To deploy manually: use near-ft-helper or local sandbox"
-
-
-      - name: Skip storage deposit in CI
-        if: steps.install_neard.outputs.installed == 'false'
-        run: |
-          echo "🧾 Skipping storage deposit in CI environment"
-          echo "💡 Storage should be registered manually or assume already exists"
-          echo "📝 Contract should be fully initialized before CI runs"
-          echo "✅ Continuing with testing assuming storage is registered"
-
-      - name: Run server (in background) and tests (sandbox)
-        if: steps.install_neard.outputs.installed == 'true'
-        env:
-          NEAR_ENV: sandbox
-          NODE_URL: http://127.0.0.1:3030
-          FT_CONTRACT: test.near
-          MASTER_ACCOUNT: test.near
-        run: |
+          # Start the API service in background
+          NEAR_ENV=sandbox \
+          NODE_URL=http://127.0.0.1:3030 \
+          FT_CONTRACT="${MASTER_ACCOUNT}" \
+          MASTER_ACCOUNT="${MASTER_ACCOUNT}" \
+          MASTER_ACCOUNT_PRIVATE_KEY="${MASTER_ACCOUNT_PRIVATE_KEY}" \
+          SKIP_STORAGE_CHECK=true \
           npm run start:sandbox &> service.log &
-          sleep 3
+          SERVICE_PID=$!
 
+          # Wait for service to be ready
+          echo "⏳ Waiting for API service to start..."
           for i in $(seq 1 60); do
             if curl -sS http://127.0.0.1:3000/health >/dev/null 2>&1; then
-              echo "✅ service up and responding"
+              echo "✅ API service is responding"
               break
             fi
             echo "⏳ Waiting for service... ($i/60)"
@@ -213,61 +140,74 @@ jobs:
           done
 
           if [ $i -eq 60 ]; then
-            echo "❌ Service did not start within 1 minute"
+            echo "❌ API service did not start within 1 minute"
             cat service.log
+            kill $SERVICE_PID 2>/dev/null || true
             exit 1
           fi
 
-          echo "🧪 Running integration tests..."
-          RECEIVER_ID="test.near"
+          echo "🧪 Running send-ft integration tests..."
 
-          for attempt in {1..3}; do
-            echo "Test attempt $attempt/3"
-            RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
-              -H "Content-Type: application/json" \
-              -d "{\"receiverId\": \"${RECEIVER_ID}\", \"amount\": \"1000000\", \"memo\": \"CI test\"}" || echo "connection_error")
-            echo "API Response: $RESPONSE"
-            if echo "$RESPONSE" | grep -q '"message"' && echo "$RESPONSE" | grep -q "FT transfer"; then
-              echo "✅ FT transfer test passed!"
-              break
-            else
-              echo "❌ FT transfer test failed (attempt $attempt)"
-              if [ $attempt -eq 3 ]; then
-                echo "Final response: $RESPONSE"
-                exit 1
-              fi
-              sleep 5
-            fi
-          done
+          # Test 1: Single transfer
+          echo "Test 1: Single FT transfer"
+          RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
+            -H "Content-Type: application/json" \
+            -d "{\"receiverId\": \"${USER_ACCOUNT_ID}\", \"amount\": \"1000000\", \"memo\": \"CI integration test\"}" || echo "connection_error")
 
-          echo "🎯 Running Artillery benchmark..."
-          npx artillery run benchmark.yml --output benchmark-sandbox.json || true
+          echo "API Response: $RESPONSE"
 
-      - name: Run basic health check only
-        if: steps.install_neard.outputs.installed == 'false'
-        run: |
-          echo "🏥 Running basic health check..."
-          npm run start:sandbox &> service.log &
-          sleep 3
-
-          for i in $(seq 1 30); do
-            if curl -sS http://127.0.0.1:3000/health >/dev/null 2>&1; then
-              echo "✅ Service health check passed!"
-              break
-            fi
-            echo "⏳ Waiting for service... ($i/30)"
-            sleep 1
-          done
-
-          if [ $i -eq 30 ]; then
-            echo "❌ Service did not start within 30 seconds"
-            cat service.log
+          if echo "$RESPONSE" | grep -q '"message"' && echo "$RESPONSE" | grep -q "FT transfer"; then
+            echo "✅ Single FT transfer test passed!"
+          else
+            echo "❌ Single FT transfer test failed"
+            echo "Response: $RESPONSE"
+            kill $SERVICE_PID 2>/dev/null || true
             exit 1
           fi
 
-          echo "🎯 Skipping integration tests (contract deployment issues)"
-          echo "✅ CI passes with basic health check"
-          echo "📝 Full integration testing requires manual contract deployment"
+          # Test 2: Batch transfers
+          echo "Test 2: Batch FT transfers"
+          BATCH_DATA="{\"transfers\": [
+            {\"receiverId\": \"${USER_ACCOUNT_ID}\", \"amount\": \"500000\", \"memo\": \"Batch test 1\"},
+            {\"receiverId\": \"${USER_ACCOUNT_ID}\", \"amount\": \"750000\", \"memo\": \"Batch test 2\"}
+          ]}"
+
+          RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
+            -H "Content-Type: application/json" \
+            -d "$BATCH_DATA" || echo "connection_error")
+
+          echo "Batch API Response: $RESPONSE"
+
+          if echo "$RESPONSE" | grep -q '"message"' && echo "$RESPONSE" | grep -q "FT transfers"; then
+            echo "✅ Batch FT transfer test passed!"
+          else
+            echo "❌ Batch FT transfer test failed"
+            echo "Response: $RESPONSE"
+            kill $SERVICE_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          # Test 3: Invalid receiver ID (security test)
+          echo "Test 3: Security test - Invalid receiver ID"
+          RESPONSE=$(curl -s -X POST http://127.0.0.1:3000/send-ft \
+            -H "Content-Type: application/json" \
+            -d "{\"receiverId\": \"invalid..account\", \"amount\": \"1000000\"}" || echo "connection_error")
+
+          if echo "$RESPONSE" | grep -q '"error"' && echo "$RESPONSE" | grep -q "Invalid receiverId"; then
+            echo "✅ Security test passed - invalid receiver rejected!"
+          else
+            echo "❌ Security test failed - invalid receiver should be rejected"
+            echo "Response: $RESPONSE"
+            kill $SERVICE_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "🎯 Running Artillery load test..."
+          RECEIVER_ID="${USER_ACCOUNT_ID}" npx artillery run benchmark.yml --output benchmark-sandbox.json || echo "⚠️ Artillery test completed with warnings"
+
+          # Cleanup
+          kill $SERVICE_PID 2>/dev/null || true
+          echo "✅ All integration tests passed!"
 
       - name: Upload logs on failure
         if: failure()
