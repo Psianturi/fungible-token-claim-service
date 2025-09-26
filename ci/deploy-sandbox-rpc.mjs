@@ -35,6 +35,26 @@ function normalizeKey(pk) {
   return `${curve}:${body}`;
 }
 
+function getSandboxKey() {
+  try {
+    const home = process.env.HOME || '';
+    const candidates = [
+      process.env.NEAR_HOME ? path.join(process.env.NEAR_HOME, 'validator_key.json') : '',
+      home ? path.join(home, '.near', 'validator_key.json') : '',
+      home ? path.join(home, '.near', 'sandbox', 'validator_key.json') : '',
+    ].filter(Boolean);
+    for (const p of candidates) {
+      if (p && fs.existsSync(p)) {
+        const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        return data.secret_key || data.private_key || null;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function resolveWasmPath() {
   // Primary: ft-claiming-service/fungible_token.wasm (../ from ci/)
   const p1 = path.resolve(__dirname, '..', 'fungible_token.wasm');
@@ -51,10 +71,10 @@ async function main() {
   const masterAccountId = process.env.MASTER_ACCOUNT || 'test.near';
   const ftContractId = process.env.FT_CONTRACT || 'ft.test.near';
   const userAccountId = process.env.RECEIVER_ID || 'user.test.near';
-  const rawKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
+  const rawKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY || getSandboxKey();
 
   if (!rawKey) {
-    throw new Error('MASTER_ACCOUNT_PRIVATE_KEY is required');
+    throw new Error('MASTER_ACCOUNT_PRIVATE_KEY is required (env or sandbox validator_key.json)');
   }
   const normalizedKey = normalizeKey(rawKey);
 

@@ -103,7 +103,6 @@ jobs:
           MASTER_ACCOUNT: test.near
           FT_CONTRACT: ft.test.near
           RECEIVER_ID: user.test.near
-          MASTER_ACCOUNT_PRIVATE_KEY: ${{ secrets.MASTER_ACCOUNT_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           echo "🚀 Deploying FT contract to sandbox RPC..."
