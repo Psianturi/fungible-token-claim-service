@@ -124,28 +124,22 @@ class NearConnectionManager {
     }
   }
 
-  // Sandbox: connect to the running neard RPC via near-api-js (simplified approach)
+  // Sandbox: connect using simplified near-api-js approach (like near-ft-claiming-service)
   private async initNearApiJs(): Promise<void> {
-    const { connect, keyStores, KeyPair, utils } = await import('near-api-js');
+    const { connect, keyStores, KeyPair } = await import('near-api-js');
 
     const masterAccountId = config.masterAccount || 'test.near';
     const nodeUrl = config.nodeUrl || 'http://127.0.0.1:3030';
 
-    // Use environment variable key (simpler approach like near-ft-claiming-service)
+    // Use environment variable key directly (simpler approach)
     const envKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
 
     if (!envKey) {
       throw new Error('MASTER_ACCOUNT_PRIVATE_KEY environment variable is required for sandbox');
     }
 
-    // Handle key format normalization
-    let normalizedKey = envKey;
-    if (!normalizedKey.startsWith('ed25519:')) {
-      normalizedKey = `ed25519:${normalizedKey}`;
-    }
-
     const keyStore = new keyStores.InMemoryKeyStore();
-    const keyPair = KeyPair.fromString(normalizedKey);
+    const keyPair = KeyPair.fromString(envKey);
     await keyStore.setKey('sandbox', masterAccountId, keyPair);
 
     const near = await connect({

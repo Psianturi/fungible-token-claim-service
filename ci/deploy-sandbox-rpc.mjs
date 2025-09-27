@@ -1,133 +1,15 @@
 /**
- * Deploy FT contract to sandbox using near-api-js v2
+ * Deploy FT contract to sandbox using simplified near-api-js approach
+ * Based on near-ft-claiming-service pattern
  *
  * Required env:
- *   - NEAR_CONTRACT_ACCOUNT_ID (default test.near)
- *   - NEAR_SIGNER_ACCOUNT_ID (default test.near)
+ *   - NEAR_CONTRACT_ACCOUNT_ID (FT contract account)
+ *   - NEAR_SIGNER_ACCOUNT_ID (master account with keys)
  *   - NEAR_SIGNER_ACCOUNT_PRIVATE_KEY (ed25519:...)
- *   - NEAR_NETWORK_CONNECTION (default sandbox)
  */
 import { connect, keyStores, utils } from 'near-api-js';
 import fs from 'fs';
 import path from 'path';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-
-function patchBorshSchemas() {
-  try {
-    const nearTransactions = require('near-api-js/lib/transaction.js');
-    const nearCrypto = require('near-api-js/lib/utils/key_pair.js');
-
-    const accountsSchemaModule = require('@near-js/accounts/node_modules/@near-js/transactions/lib/schema.js');
-    const accountsActionsModule = require('@near-js/accounts/node_modules/@near-js/transactions/lib/actions.js');
-    const accountsSignatureModule = require('@near-js/accounts/node_modules/@near-js/transactions/lib/signature.js');
-    const accountsCryptoModule = require('@near-js/accounts/node_modules/@near-js/crypto/lib/public_key.js');
-    const providersSchemaModule = require('@near-js/providers/node_modules/@near-js/transactions/lib/schema.js');
-    const providersActionsModule = require('@near-js/providers/node_modules/@near-js/transactions/lib/actions.js');
-    const providersSignatureModule = require('@near-js/providers/node_modules/@near-js/transactions/lib/signature.js');
-    const providersCryptoModule = require('@near-js/providers/node_modules/@near-js/crypto/lib/public_key.js');
-
-    const modulesToPatch = [
-      { name: '@near-js/accounts', schemaModule: accountsSchemaModule, actionsModule: accountsActionsModule, signatureModule: accountsSignatureModule, cryptoModule: accountsCryptoModule },
-      { name: '@near-js/providers', schemaModule: providersSchemaModule, actionsModule: providersActionsModule, signatureModule: providersSignatureModule, cryptoModule: providersCryptoModule },
-    ];
-
-    const classKeys = [
-      'SignedTransaction',
-      'Transaction',
-      'AccessKey',
-      'AccessKeyPermission',
-      'FunctionCallPermission',
-      'FullAccessPermission',
-      'FunctionCall',
-      'Transfer',
-      'Stake',
-      'AddKey',
-      'DeleteKey',
-      'DeleteAccount',
-      'CreateAccount',
-      'DeployContract',
-      'SignedDelegate',
-      'DelegateAction',
-      'Signature',
-      'Action',
-      'PublicKey',
-    ];
-
-    const schemaSources = [
-      { label: 'near-api-js', transactions: nearTransactions, actions: nearTransactions, signature: nearTransactions, crypto: nearCrypto },
-      { label: '@near-js/accounts', transactions: accountsSchemaModule, actions: accountsActionsModule, signature: accountsSignatureModule, crypto: accountsCryptoModule },
-      { label: '@near-js/providers', transactions: providersSchemaModule, actions: providersActionsModule, signature: providersSignatureModule, crypto: providersCryptoModule },
-    ];
-
-    const getClass = (container, key) => container?.[key];
-
-    for (const { name, schemaModule, actionsModule, signatureModule, cryptoModule } of modulesToPatch) {
-      const { SCHEMA } = schemaModule || {};
-      if (!SCHEMA || typeof SCHEMA.has !== 'function' || typeof SCHEMA.get !== 'function' || typeof SCHEMA.set !== 'function') {
-        continue;
-      }
-
-      for (const key of classKeys) {
-        const canonicalClass =
-          getClass(schemaModule, key) ||
-          getClass(actionsModule, key) ||
-          getClass(signatureModule, key) ||
-          getClass(cryptoModule, key);
-        if (!canonicalClass || !SCHEMA.has(canonicalClass)) {
-          continue;
-        }
-
-        for (const source of schemaSources) {
-          const candidate =
-            getClass(source.transactions, key) ||
-            getClass(source.actions, key) ||
-            getClass(source.signature, key) ||
-            getClass(source.crypto, key);
-          if (!candidate || candidate === canonicalClass || SCHEMA.has(candidate)) {
-            continue;
-          }
-          SCHEMA.set(candidate, SCHEMA.get(canonicalClass));
-          console.log(`🩹 Patched ${name} schema for ${key} via ${source.label}`);
-        }
-      }
-
-      const canonicalPublicKey = cryptoModule?.PublicKey;
-      if (canonicalPublicKey && SCHEMA.has(canonicalPublicKey)) {
-        for (const source of schemaSources) {
-          const candidatePk = source.crypto?.PublicKey;
-          if (!candidatePk || candidatePk === canonicalPublicKey || SCHEMA.has(candidatePk)) {
-            continue;
-          }
-          SCHEMA.set(candidatePk, SCHEMA.get(canonicalPublicKey));
-          console.log(`🩹 Patched ${name} schema for PublicKey via ${source.label}`);
-        }
-      }
-
-      const canonicalSignature =
-        getClass(schemaModule, 'Signature') ||
-        getClass(signatureModule, 'Signature') ||
-        getClass(cryptoModule, 'Signature');
-      if (canonicalSignature && SCHEMA.has(canonicalSignature)) {
-        for (const source of schemaSources) {
-          const candidateSig =
-            getClass(source.signature, 'Signature') ||
-            getClass(source.transactions, 'Signature') ||
-            getClass(source.actions, 'Signature') ||
-            getClass(source.crypto, 'Signature');
-          if (!candidateSig || candidateSig === canonicalSignature || SCHEMA.has(candidateSig)) {
-            continue;
-          }
-          SCHEMA.set(candidateSig, SCHEMA.get(canonicalSignature));
-          console.log(`🩹 Patched ${name} schema for Signature via ${source.label}`);
-        }
-      }
-    }
-  } catch (error) {
-    console.log('⚠️ Failed to patch borsh schemas:', error?.message || error);
-  }
-}
 
 async function main() {
   console.log('🚀 Deploy script started...');
