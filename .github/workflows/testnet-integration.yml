@@ -30,7 +30,7 @@ jobs:
           # Note: This account should have minimal funds for testing
           echo "NEAR_ENV=testnet" >> $GITHUB_ENV
           echo "NODE_URL=https://rpc.testnet.near.org" >> $GITHUB_ENV
-          echo "RPC_URLS=https://rpc.testnet.near.org,https://rpc.testnet.fastnear.com/?apiKey=demo" >> $GITHUB_ENV
+          echo "RPC_URLS=https://rpc.testnet.near.org,https://rpc.testnet.fastnear.com/?apiKey=${{ secrets.FASTNEAR_API_KEY }}" >> $GITHUB_ENV
 
           # Test account (should be configured with minimal NEAR for gas)
           # Replace with actual testnet account that has FT contract deployed

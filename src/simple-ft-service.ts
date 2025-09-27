@@ -86,14 +86,14 @@ export class SimpleFTService {
       // Send FT transfer
       const result = await this.signer.executeTransaction({
         action: functionCall({
-          method: 'ft_transfer',
-          args: {
+          fnName: 'ft_transfer',
+          fnArgsJson: {
             receiver_id: receiverId,
             amount,
             memo: memo || null,
           },
-          gas: teraGas('30'),
-          deposit: yoctoNear('1'),
+          gasLimit: teraGas('30'),
+          attachedDeposit: { yoctoNear: '1' },
         }),
         receiverAccountId: this.config.contractId,
       });
@@ -113,13 +113,13 @@ export class SimpleFTService {
       
       await this.signer.executeTransaction({
         action: functionCall({
-          method: 'storage_deposit',
-          args: {
+          fnName: 'storage_deposit',
+          fnArgsJson: {
             account_id: accountId,
             registration_only: true,
           },
-          gas: teraGas('30'),
-          deposit: yoctoNear('1250000000000000000000'), // 0.00125 NEAR
+          gasLimit: teraGas('30'),
+          attachedDeposit: { yoctoNear: '1250000000000000000000' },
         }),
         receiverAccountId: this.config.contractId,
       });

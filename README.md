@@ -195,15 +195,35 @@ npm run start:sandbox
 npm run start:testnet
 ```
 
-#### 4. Test API
+### Start Service
+
+#### For Development/Testing (Sandbox)
+```bash
+# Uses .env (sandbox configuration)
+npm run start:sandbox
+```
+
+#### For Production (Testnet)
+```bash
+# Uses .env.testnet (testnet configuration)
+npm run start:testnet
+```
+
+### API Usage
+
 ```bash
 # Health check
 curl http://localhost:3000/health
 
-# Send FT transfer
+# Send FT transfer (Sandbox)
 curl -X POST http://localhost:3000/send-ft \
   -H "Content-Type: application/json" \
-  -d '{"receiverId": "user.testnet", "amount": "1000000"}'
+  -d '{"receiverId": "user.test.near", "amount": "1000000"}'
+
+# Send FT transfer (Testnet)
+curl -X POST http://localhost:3000/send-ft \
+  -H "Content-Type: application/json" \
+  -d '{"receiverId": "posma-badge.testnet", "amount": "1000000000000000000"}'
 ```
 
 #### 5. Run Load Testing
@@ -481,21 +501,46 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
+### Environment Files
+
+The service supports multiple environments with separate configuration files:
+
+- **`.env`** - Sandbox configuration (local development)
+- **`.env.testnet`** - Testnet configuration (production testing)
+- **`.env.example`** - Template with all configuration options
+
+### Quick Setup
+
+#### For Sandbox (Local Development)
+```bash
+# Default .env is already configured for sandbox
+npm run start:sandbox
+```
+
+#### For Testnet (Production Testing)
+```bash
+# Copy and configure testnet environment
+cp .env.example .env.testnet
+# Edit .env.testnet with your testnet account details
+npm run start:testnet
+```
+
 ### Environment Variables
 
-```bash
-# Required
-NEAR_ENV=testnet                    # or 'sandbox' for testing
-MASTER_ACCOUNT=your-account.testnet # Your NEAR account
-MASTER_ACCOUNT_PRIVATE_KEY=ed25519:... # Your private key
-FT_CONTRACT=your-ft-contract.testnet   # Deployed FT contract
+#### Required for All Environments
+- `NEAR_ENV`: `sandbox` or `testnet`
+- `MASTER_ACCOUNT`: Your NEAR account ID
+- `MASTER_ACCOUNT_PRIVATE_KEY`: Your NEAR private key (ed25519 format)
+- `FT_CONTRACT`: FT contract account ID
 
-# Optional
-NODE_URL=https://rpc.testnet.near.org  # RPC endpoint
-PORT=3000                             # API port
-CONCURRENCY_LIMIT=2000               # Max concurrent requests
-WORKER_COUNT=5                       # Number of worker processes
-```
+#### Testnet Specific
+- `RPC_URLS`: Comma-separated RPC providers (recommended: official + FastNEAR)
+- `FASTNEAR_API_KEY`: API key for FastNEAR (improves performance)
+
+#### Performance Tuning
+- `CONCURRENCY_LIMIT`: Max concurrent requests (default: 2000)
+- `WORKER_COUNT`: Number of background workers (default: 5)
+- `SKIP_STORAGE_CHECK`: Skip NEP-145 storage deposit checks (default: true)
 
 ### Production Deployment
 

@@ -52,7 +52,7 @@ async function testAPIService() {
     ftContractAccount.accountId,
     'storage_deposit',
     { account_id: userAccount.accountId, registration_only: true },
-    { attachedDeposit: '1250000000000000000000' }
+    { attachedDeposit: BigInt('1250000000000000000000') }
   );
   console.log('✅ User registered for storage');
 

@@ -5,8 +5,13 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const envPath = join(__dirname, '..', '.env');
 
+// Determine which env file to load
+const isSandbox = process.env.NEAR_ENV === 'sandbox';
+const envFile = isSandbox ? '.env' : '.env.testnet';
+const envPath = join(__dirname, '..', envFile);
+
+console.log(`🔧 Loading config from: ${envFile}`);
 dotenv.config({ path: envPath });
 
 let config = {
@@ -21,7 +26,6 @@ let config = {
 };
 
 // Override sandbox
-const isSandbox = process.env.NEAR_ENV === 'sandbox';
 if (isSandbox) {
   console.log('🔧 Sandbox config debug:');
   console.log('   - process.env.NEAR_ENV:', process.env.NEAR_ENV);

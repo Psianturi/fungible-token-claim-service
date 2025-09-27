@@ -126,7 +126,7 @@ class NearConnectionManager {
 
   // Sandbox: connect using simplified near-api-js approach (like near-ft-claiming-service)
   private async initNearApiJs(): Promise<void> {
-    const { connect, keyStores, KeyPair } = await import('near-api-js');
+    const { connect, keyStores, utils } = await import('near-api-js');
 
     const masterAccountId = config.masterAccount || 'test.near';
     const nodeUrl = config.nodeUrl || 'http://127.0.0.1:3030';
@@ -139,7 +139,8 @@ class NearConnectionManager {
     }
 
     const keyStore = new keyStores.InMemoryKeyStore();
-    const keyPair = KeyPair.fromString(envKey);
+    const normalizedKey = normalizeKey(envKey);
+    const keyPair = utils.KeyPair.fromString(normalizedKey as any);
     await keyStore.setKey('sandbox', masterAccountId, keyPair);
 
     const near = await connect({
