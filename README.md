@@ -1,7 +1,7 @@
 # NEAR Fungible Token API Service
 
-[![NEAR Sandbox Test](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml/badge.svg)](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/sandbox-test.yml)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![NEAR Testnet Integration](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/testnet-integration.yml/badge.svg)](https://github.com/Psianturi/fungible-token-claim-service/actions/workflows/testnet-integration.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescript.org/)
 [![NEAR Protocol](https://img.shields.io/badge/NEAR-Protocol-blue)](https://near.org/)
 [![Performance](https://img.shields.io/badge/Performance-193%20TPS-brightgreen)](https://github.com/Psianturi/fungible-token-claim-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -11,10 +11,12 @@ A high-performance REST API service for transferring NEAR Fungible Tokens with *
 ## 🚀 CI/CD Status
 
 **Automated Testing & Deployment:**
-- ✅ **Sandbox**: FT contract deployed, test accounts created, storage registered
-- ✅ **Testnet**: Production environment with real NEAR network
+- ✅ **Testnet**: Real blockchain integration with FT contract validation
+- ✅ **Sandbox**: Local performance testing (193 TPS achieved)
 - ✅ **Security**: Input validation, account ID verification, overflow protection
 - ✅ **Performance**: 193 TPS benchmarked and validated (exceeds 100 TPS requirement)
+
+**Note**: CI uses testnet for reliable blockchain integration testing, while sandbox is used for local performance benchmarking due to SDK compatibility constraints.
 
 ## Features
 
@@ -110,11 +112,55 @@ test-complete-pipeline.sh     # Complete automated testing pipeline
 ### 🚀 **Automated Testing Pipeline (Recommended)**
 
 ```bash
+## Testing
+
+### 🚀 **Automated Testing Pipeline (Recommended)**
+
+```bash
 # Complete end-to-end testing in one command
 ./test-complete-pipeline.sh
 
 # Custom parameters for extended testing
 TEST_DURATION=600 MAX_TPS=200 ./test-complete-pipeline.sh
+```
+
+This script automatically:
+- Starts NEAR sandbox
+- Deploys FT contract
+- Configures test accounts
+- Starts API service
+- Runs comprehensive validation tests
+- Executes Artillery load testing
+- Generates performance reports
+
+### 🧪 **CI/CD Integration Testing**
+
+The project uses **GitHub Actions** for automated integration testing:
+
+#### Testnet Integration (CI)
+- **Environment**: Real NEAR testnet blockchain
+- **Purpose**: Validates actual blockchain interactions
+- **Coverage**: API endpoints, transaction processing, error handling
+- **Trigger**: Every push and pull request
+
+#### Sandbox Performance Testing (Local)
+- **Environment**: Local NEAR sandbox
+- **Purpose**: Performance benchmarking (193 TPS achieved)
+- **Coverage**: Load testing, concurrent processing, queue management
+- **Execution**: Local development environment
+
+### 📊 **Manual Load Testing**
+
+```bash
+# Install Artillery
+npm install -g artillery
+
+# Run benchmark
+artillery run benchmark.yml --output results.json
+
+# Generate report
+artillery report results.json --output report.html
+```
 ```
 
 This script automatically:
