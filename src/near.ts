@@ -124,31 +124,29 @@ class NearConnectionManager {
     }
   }
 
-  // Sandbox: connect to the running neard RPC via near-api-js (not near-workspaces)
+  // Sandbox: connect to the running neard RPC via near-api-js (simplified approach)
   private async initNearApiJs(): Promise<void> {
-    const { connect, keyStores, KeyPair } = await import('near-api-js');
+    const { connect, keyStores, KeyPair, utils } = await import('near-api-js');
 
     const masterAccountId = config.masterAccount || 'test.near';
     const nodeUrl = config.nodeUrl || 'http://127.0.0.1:3030';
 
-    // Prefer sandbox validator key for the master account (e.g. test.near), fallback to env
-    const sandboxKey = this.getSandboxKey(masterAccountId);
+    // Use environment variable key (simpler approach like near-ft-claiming-service)
     const envKey = process.env.MASTER_ACCOUNT_PRIVATE_KEY;
-    const chosenKey = sandboxKey || envKey;
 
-    if (!chosenKey) {
-      throw new Error('MASTER_ACCOUNT_PRIVATE_KEY or sandbox validator_key.json is required for sandbox');
+    if (!envKey) {
+      throw new Error('MASTER_ACCOUNT_PRIVATE_KEY environment variable is required for sandbox');
     }
-    const normalizedKey = normalizeKey(chosenKey);
+
+    // Handle key format normalization
+    let normalizedKey = envKey;
+    if (!normalizedKey.startsWith('ed25519:')) {
+      normalizedKey = `ed25519:${normalizedKey}`;
+    }
 
     const keyStore = new keyStores.InMemoryKeyStore();
-    await keyStore.setKey('sandbox', masterAccountId, KeyPair.fromString(normalizedKey));
-
-    // Defensive: also set in common namespaces to avoid signer namespace mismatches in some setups
-    try {
-      await keyStore.setKey('local', masterAccountId, KeyPair.fromString(normalizedKey));
-      await keyStore.setKey('default', masterAccountId, KeyPair.fromString(normalizedKey));
-    } catch (_) { /* noop */ }
+    const keyPair = KeyPair.fromString(normalizedKey);
+    await keyStore.setKey('sandbox', masterAccountId, keyPair);
 
     const near = await connect({
       networkId: 'sandbox',
@@ -165,7 +163,7 @@ class NearConnectionManager {
     console.log(`🔍 Sandbox RPC init (near-api-js):`);
     console.log(`   - nodeUrl: ${nodeUrl}`);
     console.log(`   - masterAccount: ${masterAccountId}`);
-    console.log(`   - key source: ${sandboxKey ? 'validator_key.json' : 'env MASTER_ACCOUNT_PRIVATE_KEY'}`);
+    console.log(`   - key source: env MASTER_ACCOUNT_PRIVATE_KEY`);
 
     this.isUsingNearApiJs = true;
     console.log(`✅ NEAR init: near-api-js (sandbox RPC)`);

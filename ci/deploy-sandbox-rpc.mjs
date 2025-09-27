@@ -132,14 +132,10 @@ function patchBorshSchemas() {
 async function main() {
   console.log('🚀 Deploy script started...');
 
-  patchBorshSchemas();
-
   // Load environment variables
-  const contractAccountId = process.env.NEAR_CONTRACT_ACCOUNT_ID || 'ft.test.near';
+  const contractAccountId = process.env.NEAR_CONTRACT_ACCOUNT_ID || 'test.near';
   const signerAccountId = process.env.NEAR_SIGNER_ACCOUNT_ID || 'test.near';
   const signerPrivateKey = process.env.NEAR_SIGNER_ACCOUNT_PRIVATE_KEY;
-  const networkConnection = process.env.NEAR_NETWORK_CONNECTION || 'sandbox';
-  const nodeUrl = process.env.NEAR_NODE_URL || 'http://127.0.0.1:3030';
 
   if (!signerPrivateKey) {
     throw new Error('NEAR_SIGNER_ACCOUNT_PRIVATE_KEY is required');
@@ -153,109 +149,50 @@ async function main() {
 
   console.log(`📦 Deploying contract to: ${contractAccountId}`);
   console.log(`🔑 Using signer: ${signerAccountId}`);
-  console.log(`🌐 Network: ${networkConnection}`);
 
-  // Setup key store - handle key format properly
+  // Setup key store with simplified approach (like near-ft-claiming-service)
   const keyStore = new keyStores.InMemoryKeyStore();
-  let keyPair;
-  try {
-    keyPair = utils.KeyPair.fromString(signerPrivateKey);
-  } catch (error) {
-    console.log('Failed to parse key with prefix, trying without prefix...');
-    const keyWithoutPrefix = signerPrivateKey.replace(/^ed25519:/, '');
-    keyPair = utils.KeyPair.fromString(keyWithoutPrefix);
-  }
-  await keyStore.setKey(networkConnection, signerAccountId, keyPair);
+  const keyPair = utils.KeyPair.fromString(signerPrivateKey);
+  await keyStore.setKey('sandbox', signerAccountId, keyPair);
 
   // Connect to NEAR
   const near = await connect({
-    networkId: networkConnection,
-    keyStore,
-    nodeUrl,
+    networkId: 'sandbox',
+    nodeUrl: 'http://127.0.0.1:3030',
+    deps: { keyStore },
   });
 
   // Get account handle
-  const signerAccount = await near.account(signerAccountId);
-
-  // Ensure contract account exists (allowing contract == signer)
-  let contractAccount;
-  if (contractAccountId === signerAccountId) {
-    contractAccount = signerAccount;
-    console.log('✅ Using signer account as contract account');
-    const pk = keyPair.getPublicKey();
-    console.log('🔬 Signer public key class:', pk?.constructor?.name);
-    try {
-      const { PublicKey } = await import('near-api-js/lib/utils/key_pair.js');
-      console.log('🔬 Matches near-api-js PublicKey:', pk instanceof PublicKey);
-    } catch (importError) {
-      console.log('⚠️ Could not import near-api-js PublicKey for comparison:', importError?.message);
-    }
-  } else {
-    try {
-      contractAccount = await near.account(contractAccountId);
-      console.log('✅ Found existing contract account:', contractAccountId);
-    } catch (error) {
-      console.log('ℹ️  Contract account missing, creating sub-account...');
-      const publicKey = keyPair.getPublicKey();
-      await signerAccount.createAccount(
-        contractAccountId,
-        publicKey,
-        utils.format.parseNearAmount('10')
-      );
-      contractAccount = await near.account(contractAccountId);
-      console.log('✅ Created contract sub-account:', contractAccountId);
-    }
-    await keyStore.setKey(networkConnection, contractAccountId, keyPair);
-  }
+  const account = await near.account(signerAccountId);
 
   // Read WASM file
   const wasm = fs.readFileSync(wasmPath);
   console.log(`📄 WASM file size: ${wasm.length} bytes`);
 
   try {
-    // Deploy contract using the standard near-api-js approach
+    // Deploy contract using simplified approach
     console.log('🔨 Deploying contract...');
-    await contractAccount.deployContract(wasm);
+    await account.deployContract(wasm);
     console.log('✅ Contract deployed successfully!');
 
-    // Initialize contract using the same pattern as near-ft-helper
+    // Initialize contract with minimal parameters (like near-ft-claiming-service)
     console.log('⚙️ Initializing contract...');
-    await contractAccount.functionCall({
+    await account.functionCall({
       contractId: contractAccountId,
       methodName: 'new_default_meta',
       args: {
         owner_id: signerAccountId,
-        total_supply: '1000000000000000000000000'
+        total_supply: '1000000000000000000000000' // 1M tokens with 18 decimals
       },
-      gas: '30000000000000'
+      gas: '300000000000000', // 300 TGas
+      attachedDeposit: '0'
     });
     console.log('✅ Contract initialized successfully!');
 
-    // Register storage for signer account
-    console.log('💾 Registering storage...');
-    await contractAccount.functionCall({
-      contractId: contractAccountId,
-      methodName: 'storage_deposit',
-      args: {
-        account_id: signerAccountId,
-        registration_only: true
-      },
-      gas: '30000000000000',
-      attachedDeposit: utils.format.parseNearAmount('0.00125')
-    });
-    console.log('✅ Storage registered successfully!');
-
   } catch (error) {
     const message = error?.message || String(error);
-    if (message.includes('contract has already been initialized')) {
-      console.log('⚠️ Contract already initialized, continuing...');
-    } else {
-      console.error('❌ Deployment failed:', message);
-      if (error?.stack) {
-        console.error(error.stack);
-      }
-      process.exit(1);
-    }
+    console.error('❌ Deployment failed:', message);
+    throw error;
   }
 
   console.log('🎉 FT contract deployment completed!');
